@@ -7,6 +7,7 @@ import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import { alpha, useTheme } from "@mui/material/styles";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import DeviceHubOutlinedIcon from "@mui/icons-material/DeviceHubOutlined";
@@ -54,10 +55,17 @@ export default function DeviceCard({
   onEdit,
   onDelete,
 }: DeviceCardProps) {
+  const theme = useTheme();
   const [tokenCopied, setTokenCopied] = useState(false);
   const status = String(device?.deviceStatus ?? "offline");
   const statusColor = getStatusColor(status);
   const isOnline = statusColor === "success";
+
+  const primaryMain = theme.palette.primary.main;
+  const primaryLight = theme.palette.primary.light;
+  const isDark = theme.palette.mode === "dark";
+  const mutedLabel = theme.palette.text.secondary;
+  const gridColor = alpha(primaryMain, isDark ? 0.16 : 0.08);
 
   const logs = (device?.deviceLogs ?? []).slice();
   logs.sort(
@@ -72,69 +80,85 @@ export default function DeviceCard({
     return Number.isFinite(n) ? n : 0;
   });
 
-  // Spline area colors (ApexCharts demo style: https://apexcharts.com/javascript-chart-demos/area-charts/spline/)
-  const chartColors = isOnline
-    ? { main: "#00E396", gradientTo: "#00E396" } // green (2nd default in ApexCharts)
-    : { main: "#008FFB", gradientTo: "#77B6FF" }; // blue (1st default in ApexCharts)
-
   const chartOptions: ApexOptions = {
     chart: {
       type: "area",
+      background: "transparent",
       toolbar: { show: false },
       zoom: { enabled: false },
-      fontFamily: "inherit",
+      fontFamily: theme.typography.fontFamily,
       sparkline: { enabled: false },
+      animations: {
+        enabled: true,
+        easing: "easeinout",
+        speed: 650,
+      },
     },
     stroke: {
-      curve: "smooth", // spline
-      width: 2,
-      colors: [chartColors.main],
+      curve: "smooth",
+      width: 2.5,
+      colors: [primaryMain],
     },
     fill: {
       type: "gradient",
       gradient: {
-        shade: "light",
+        shade: isDark ? "dark" : "light",
         type: "vertical",
-        shadeIntensity: 0.5,
-        gradientToColors: [chartColors.gradientTo],
-        opacityFrom: 0.85,
-        opacityTo: 0.45,
-        stops: [0, 100],
+        shadeIntensity: 0.35,
+        gradientToColors: [primaryLight],
+        inverseColors: false,
+        opacityFrom: isDark ? 0.55 : 0.42,
+        opacityTo: isDark ? 0.05 : 0.02,
+        stops: [0, 88, 100],
       },
     },
-    colors: [chartColors.main],
+    colors: [primaryMain],
     xaxis: {
       categories: chartCategories,
       labels: {
-        style: { fontSize: "11px", colors: "#666" },
-        maxHeight: 70,
-        rotate: -45,
+        style: { fontSize: "10px", colors: mutedLabel, fontWeight: 500 },
+        maxHeight: 56,
+        rotate: -35,
+        hideOverlappingLabels: true,
       },
       axisBorder: { show: false },
       axisTicks: { show: false },
+      tooltip: { enabled: false },
     },
     yaxis: {
-      labels: { style: { fontSize: "11px", colors: "#666" } },
+      labels: {
+        style: { fontSize: "10px", colors: mutedLabel, fontWeight: 500 },
+        formatter: (val) =>
+          Number.isFinite(val) ? String(Math.round(val * 100) / 100) : "",
+      },
       title: { text: undefined },
       axisBorder: { show: false },
       axisTicks: { show: false },
       crosshairs: { show: false },
     },
     grid: {
-      borderColor: "rgba(0,0,0,0.06)",
-      strokeDashArray: 4,
+      borderColor: gridColor,
+      strokeDashArray: 3,
       xaxis: { lines: { show: false } },
       yaxis: { lines: { show: true } },
-      padding: { top: 0, right: 8, bottom: 0, left: 8 },
+      padding: { top: 8, right: 10, bottom: 0, left: 4 },
     },
     tooltip: {
-      theme: "light",
+      theme: isDark ? "dark" : "light",
+      style: { fontSize: "12px" },
       x: { format: "MM/DD HH:mm" },
       y: { formatter: (val) => String(val) },
+      marker: { show: true },
     },
     dataLabels: { enabled: false },
     legend: { show: false },
-    markers: { size: 0 },
+    markers: {
+      size: 0,
+      hover: { size: 5, sizeOffset: 2 },
+      colors: [primaryMain],
+      strokeColors: theme.palette.background.paper,
+      strokeWidth: 2,
+    },
     plotOptions: {
       area: {
         fillTo: "origin",
@@ -149,16 +173,42 @@ export default function DeviceCard({
       elevation={0}
       sx={{
         height: "100%",
-        border: "1px solid",
-        borderColor: "divider",
+        position: "relative",
         overflow: "hidden",
+        border: "1px solid",
+        borderColor: alpha(primaryMain, isDark ? 0.22 : 0.1),
+        backgroundImage: `linear-gradient(
+          165deg,
+          ${alpha(primaryMain, isDark ? 0.1 : 0.04)} 0%,
+          ${theme.palette.background.paper} 42%,
+          ${theme.palette.background.paper} 100%
+        )`,
+        boxShadow: isDark
+          ? `0 10px 28px ${alpha("#000", 0.35)}`
+          : `0 10px 28px ${alpha(primaryMain, 0.07)}`,
         transition:
-          "box-shadow 0.25s ease, border-color 0.25s ease, transform 0.25s ease",
+          "box-shadow 0.28s ease, border-color 0.28s ease, transform 0.28s ease",
+        "&:hover": {
+          borderColor: alpha(primaryMain, isDark ? 0.45 : 0.28),
+          boxShadow: isDark
+            ? `0 14px 36px ${alpha("#000", 0.45)}`
+            : `0 14px 36px ${alpha(primaryMain, 0.14)}`,
+          transform: "translateY(-2px)",
+        },
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: `linear-gradient(90deg, ${primaryMain}, ${primaryLight})`,
+          opacity: 0.9,
+        },
       }}
     >
       <CardContent sx={{ p: 2.5, "&:last-child": { pb: 2.5 } }}>
-        <Stack spacing={2.5}>
-          {/* Top row: icon + name + status */}
+        <Stack spacing={2.25}>
           <Stack
             direction="row"
             alignItems="flex-start"
@@ -173,20 +223,21 @@ export default function DeviceCard({
             >
               <Box
                 sx={{
-                  width: 56,
-                  height: 56,
+                  width: 52,
+                  height: 52,
                   flexShrink: 0,
                   borderRadius: 2.5,
-                  bgcolor: isOnline ? "success.light" : "grey.100",
-                  color: isOnline ? "success.dark" : "grey.700",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  color: "primary.main",
+                  bgcolor: alpha(primaryMain, isDark ? 0.18 : 0.1),
                   border: "1px solid",
-                  borderColor: isOnline ? "success.main" : "grey.300",
+                  borderColor: alpha(primaryMain, isDark ? 0.35 : 0.18),
+                  boxShadow: `inset 0 1px 0 ${alpha("#fff", isDark ? 0.06 : 0.55)}`,
                 }}
               >
-                <DeviceHubOutlinedIcon sx={{ fontSize: 30 }} />
+                <DeviceHubOutlinedIcon sx={{ fontSize: 28 }} />
               </Box>
               <Box sx={{ minWidth: 0 }}>
                 <Typography
@@ -250,7 +301,14 @@ export default function DeviceCard({
                             /* noop */
                           }
                         }}
-                        sx={{ mt: -0.5, flexShrink: 0 }}
+                        sx={{
+                          mt: -0.5,
+                          flexShrink: 0,
+                          color: "primary.main",
+                          "&:hover": {
+                            bgcolor: alpha(primaryMain, 0.08),
+                          },
+                        }}
                       >
                         <ContentCopyIcon sx={{ fontSize: 16 }} />
                       </IconButton>
@@ -265,22 +323,38 @@ export default function DeviceCard({
                 status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
               }
               color={statusColor}
-              variant="outlined"
-              sx={{ fontWeight: 700, flexShrink: 0 }}
+              variant={isOnline ? "filled" : "outlined"}
+              sx={{
+                fontWeight: 700,
+                flexShrink: 0,
+                ...(isOnline
+                  ? {
+                      bgcolor: alpha(theme.palette.success.main, 0.14),
+                      color: "success.dark",
+                      border: "1px solid",
+                      borderColor: alpha(theme.palette.success.main, 0.35),
+                    }
+                  : {
+                      borderColor: alpha(primaryMain, 0.22),
+                      color: "text.secondary",
+                    }),
+              }}
             />
           </Stack>
 
-          {/* Area chart */}
           <Box>
             {logs.length > 0 ? (
               <Box
                 sx={{
                   minHeight: 200,
-                  borderRadius: 2,
+                  borderRadius: 2.5,
                   overflow: "hidden",
-                  bgcolor: "action.hover",
+                  px: 0.5,
+                  pt: 1,
+                  bgcolor: alpha(primaryMain, isDark ? 0.08 : 0.035),
                   border: "1px solid",
-                  borderColor: "divider",
+                  borderColor: alpha(primaryMain, isDark ? 0.2 : 0.1),
+                  boxShadow: `inset 0 1px 0 ${alpha("#fff", isDark ? 0.04 : 0.7)}`,
                 }}
               >
                 <ReactApexChart
@@ -295,51 +369,93 @@ export default function DeviceCard({
                 sx={{
                   height: 200,
                   display: "flex",
+                  flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  bgcolor: "action.hover",
-                  borderRadius: 2,
+                  gap: 0.5,
+                  bgcolor: alpha(primaryMain, isDark ? 0.08 : 0.035),
+                  borderRadius: 2.5,
                   border: "1px dashed",
-                  borderColor: "divider",
+                  borderColor: alpha(primaryMain, isDark ? 0.28 : 0.18),
                 }}
               >
-                <Typography variant="body2" color="text.secondary">
+                <Typography
+                  variant="body2"
+                  fontWeight={600}
+                  color="primary.main"
+                >
                   No log data
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Chart will appear when logs arrive
                 </Typography>
               </Box>
             )}
           </Box>
 
-          {/* Actions */}
           <Stack
             direction="row"
-            spacing={0.5}
+            spacing={0.75}
             justifyContent="flex-end"
-            sx={{
-              pt: 0.5,
-              "& .MuiIconButton-root": {
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 2,
-                "&:hover": {
-                  borderColor: "primary.main",
-                  bgcolor: "action.selected",
-                },
-              },
-            }}
+            sx={{ pt: 0.25 }}
           >
             <Tooltip title="Detail">
-              <IconButton size="small" onClick={onDetail}>
+              <IconButton
+                size="small"
+                onClick={onDetail}
+                aria-label="Detail"
+                sx={{
+                  border: "1px solid",
+                  borderColor: alpha(primaryMain, isDark ? 0.22 : 0.12),
+                  borderRadius: 2,
+                  color: "primary.main",
+                  bgcolor: alpha(primaryMain, isDark ? 0.06 : 0.03),
+                  "&:hover": {
+                    borderColor: "primary.main",
+                    bgcolor: alpha(primaryMain, isDark ? 0.16 : 0.1),
+                  },
+                }}
+              >
                 <VisibilityOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
             <Tooltip title="Update">
-              <IconButton size="small" color="primary" onClick={onEdit}>
+              <IconButton
+                size="small"
+                onClick={onEdit}
+                aria-label="Update"
+                sx={{
+                  border: "1px solid",
+                  borderColor: alpha(primaryMain, isDark ? 0.22 : 0.12),
+                  borderRadius: 2,
+                  color: "primary.main",
+                  bgcolor: alpha(primaryMain, isDark ? 0.06 : 0.03),
+                  "&:hover": {
+                    borderColor: "primary.main",
+                    bgcolor: alpha(primaryMain, isDark ? 0.16 : 0.1),
+                  },
+                }}
+              >
                 <EditOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
             <Tooltip title="Delete">
-              <IconButton size="small" color="error" onClick={onDelete}>
+              <IconButton
+                size="small"
+                onClick={onDelete}
+                aria-label="Delete"
+                sx={{
+                  border: "1px solid",
+                  borderColor: alpha(theme.palette.error.main, 0.28),
+                  borderRadius: 2,
+                  color: "error.main",
+                  bgcolor: alpha(theme.palette.error.main, 0.04),
+                  "&:hover": {
+                    borderColor: "error.main",
+                    bgcolor: alpha(theme.palette.error.main, 0.1),
+                  },
+                }}
+              >
                 <DeleteOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
