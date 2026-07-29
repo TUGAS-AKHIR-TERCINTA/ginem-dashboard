@@ -1,4 +1,3 @@
-import { useState } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -12,7 +11,6 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import DeviceHubOutlinedIcon from "@mui/icons-material/DeviceHubOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ReactApexChart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
 import moment from "moment";
@@ -56,7 +54,6 @@ export default function DeviceCard({
   onDelete,
 }: DeviceCardProps) {
   const theme = useTheme();
-  const [tokenCopied, setTokenCopied] = useState(false);
   const status = String(device?.deviceStatus ?? "offline");
   const statusColor = getStatusColor(status);
   const isOnline = statusColor === "success";
@@ -254,67 +251,15 @@ export default function DeviceCard({
                 >
                   {device?.deviceName || "—"}
                 </Typography>
-                <Stack
-                  direction="row"
-                  alignItems="flex-start"
-                  spacing={0.5}
-                  sx={{ mt: 0.25 }}
-                >
+                {device?.deviceType ? (
                   <Typography
-                    component="div"
-                    variant="caption"
+                    variant="body2"
                     color="text.secondary"
-                    sx={{
-                      flex: 1,
-                      minWidth: 0,
-                      fontFamily: "ui-monospace, monospace",
-                      fontSize: "0.7rem",
-                      lineHeight: 1.3,
-                      wordBreak: "break-all",
-                      userSelect: "text",
-                      cursor: "text",
-                      py: 0.25,
-                    }}
+                    sx={{ mt: 0.25 }}
                   >
-                    {device?.deviceToken || "—"}
+                    {device.deviceType}
                   </Typography>
-                  {device?.deviceToken ? (
-                    <Tooltip
-                      title={
-                        tokenCopied ? "Disalin ke clipboard" : "Salin token"
-                      }
-                    >
-                      <IconButton
-                        size="small"
-                        aria-label="Salin device token"
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(
-                              device.deviceToken ?? "",
-                            );
-                            setTokenCopied(true);
-                            window.setTimeout(
-                              () => setTokenCopied(false),
-                              2000,
-                            );
-                          } catch {
-                            /* noop */
-                          }
-                        }}
-                        sx={{
-                          mt: -0.5,
-                          flexShrink: 0,
-                          color: "primary.main",
-                          "&:hover": {
-                            bgcolor: alpha(primaryMain, 0.08),
-                          },
-                        }}
-                      >
-                        <ContentCopyIcon sx={{ fontSize: 16 }} />
-                      </IconButton>
-                    </Tooltip>
-                  ) : null}
-                </Stack>
+                ) : null}
               </Box>
             </Stack>
             <Chip

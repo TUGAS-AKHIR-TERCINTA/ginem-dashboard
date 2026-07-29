@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Box from "@mui/material/Box";
 import { useDeviceDetailQuery } from "@/hooks/services";
 import {
@@ -5,6 +6,7 @@ import {
   Button,
   Chip,
   Divider,
+  IconButton,
   Paper,
   Stack,
   Table,
@@ -13,6 +15,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import BreadCrumberStyle from "@/components/common/Breadcrumb";
@@ -20,6 +23,7 @@ import { IconMenus } from "@/assets/icons";
 import { convertTime } from "@/utils/convertTime";
 import { useNavigate, useParams } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { IDeviceValue } from "@/types/Device";
 import { muiTableContainerSx } from "@/styles/tableStyles";
 import { ROUTES } from "@/routes/routes";
@@ -27,6 +31,7 @@ import { ROUTES } from "@/routes/routes";
 export default function DetailDeviceView() {
   const { deviceId } = useParams<{ deviceId: string }>();
   const navigate = useNavigate();
+  const [tokenCopied, setTokenCopied] = useState(false);
 
   const {
     data: device,
@@ -35,6 +40,17 @@ export default function DetailDeviceView() {
   } = useDeviceDetailQuery(deviceId);
 
   const errorMessage = isError ? "Failed to load device." : null;
+
+  const handleCopyToken = async () => {
+    if (!device?.deviceToken) return;
+    try {
+      await navigator.clipboard.writeText(device.deviceToken);
+      setTokenCopied(true);
+      window.setTimeout(() => setTokenCopied(false), 2000);
+    } catch (error: unknown) {
+      console.error(error);
+    }
+  };
 
   const getStatusColor = (
     status: string,
@@ -98,8 +114,7 @@ export default function DetailDeviceView() {
                   {device.deviceName || "—"}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Device ID: {device.deviceId} • Token:{" "}
-                  {device.deviceToken || "—"}
+                  Device ID: {device.deviceId}
                 </Typography>
               </Box>
               <Chip
@@ -120,6 +135,38 @@ export default function DetailDeviceView() {
             </Typography>
             <Stack spacing={1.5} sx={{ mb: 3 }}>
               <Stack direction="row" flexWrap="wrap" gap={2}>
+                <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Token
+                  </Typography>
+                  <Stack direction="row" alignItems="center" spacing={0.5}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily: "ui-monospace, monospace",
+                        wordBreak: "break-all",
+                        userSelect: "text",
+                      }}
+                    >
+                      {device.deviceToken || "—"}
+                    </Typography>
+                    {device.deviceToken ? (
+                      <Tooltip
+                        title={
+                          tokenCopied ? "Copied to clipboard" : "Copy token"
+                        }
+                      >
+                        <IconButton
+                          size="small"
+                          aria-label="Copy device token"
+                          onClick={handleCopyToken}
+                        >
+                          <ContentCopyIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                    ) : null}
+                  </Stack>
+                </Box>
                 <Box>
                   <Typography variant="caption" color="text.secondary">
                     Type
