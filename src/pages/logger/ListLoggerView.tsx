@@ -1,53 +1,33 @@
-import Box from "@mui/material/Box";
 import {
-  GridRowsProp,
-  DataGrid,
   GridColDef,
   GridToolbarContainer,
   GridToolbarExport,
 } from "@mui/x-data-grid";
-import { useEffect, useState } from "react";
-import { useHttp } from "../../hooks/http";
+import { useState } from "react";
+import { useLoggerListQuery } from "@/hooks/services";
 import { Button, Chip, Stack, TextField } from "@mui/material";
-import BreadCrumberStyle from "../../components/breadcrumb/Index";
-import { IconMenus } from "../../components/icon";
-import { convertTime } from "../../utilities/convertTime";
+import BreadCrumberStyle from "@/components/common/Breadcrumb";
+import PageHeader from "@/components/common/PageHeader";
+import AppDataGrid from "@/components/common/AppDataGrid";
+import { IconMenus } from "@/assets/icons";
+import { convertTime } from "@/utils/convertTime";
+import { ROUTES } from "@/routes/routes";
 
 export default function ListLoggerView() {
-  const [tableData, setTableData] = useState<GridRowsProp[]>([]);
-  const { handleGetTableDataRequest } = useHttp();
-
-  const [loading, setLoading] = useState(false);
-  const [rowCount, setRowCount] = useState(0);
   const [paginationModel, setPaginationModel] = useState({
     pageSize: 10,
-    page: 1,
+    page: 0,
   });
 
-  const getTableData = async ({ search }: { search: string }) => {
-    try {
-      setLoading(true);
-      const result = await handleGetTableDataRequest({
-        path: "/logs",
-        page: paginationModel.page ?? 1,
-        size: paginationModel.pageSize ?? 10,
-        filter: { search },
-      });
+  const { data, isFetching, refetch } = useLoggerListQuery({
+    page: paginationModel.page + 1,
+    size: paginationModel.pageSize,
+    search: "",
+  });
 
-      if (result && result.items) {
-        setTableData(result.items);
-        setRowCount(result.totalItems);
-      }
-    } catch (error: any) {
-      console.log(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    getTableData({ search: "" });
-  }, [paginationModel]);
+  const tableData = data?.items ?? [];
+  const rowCount = data?.totalItems ?? 0;
+  const loading = isFetching;
 
   const getLevelChipProps = (
     raw: unknown,
@@ -68,14 +48,13 @@ export default function ListLoggerView() {
   const columns: GridColDef[] = [
     {
       field: "appLogId",
-      renderHeader: () => <strong>{"ID"}</strong>,
-      editable: true,
+      headerName: "ID",
+      width: 90,
     },
     {
       field: "appLogLevel",
       width: 120,
-      renderHeader: () => <strong>{"Level"}</strong>,
-      editable: false,
+      headerName: "Level",
       renderCell: (params) => {
         const { label, color } = getLevelChipProps(params.value);
         return (
@@ -86,14 +65,14 @@ export default function ListLoggerView() {
     {
       field: "appLogMessage",
       flex: 2,
-      renderHeader: () => <strong>{"Message"}</strong>,
-      editable: true,
+      minWidth: 200,
+      headerName: "Message",
     },
     {
       field: "createdAt",
       flex: 1,
-      renderHeader: () => <strong>{"Dipesan pada"}</strong>,
-      editable: true,
+      minWidth: 160,
+      headerName: "Created at",
       valueFormatter: (item) => convertTime(item.value),
     },
   ];
@@ -101,18 +80,20 @@ export default function ListLoggerView() {
   function CustomToolbar() {
     const [search, setSearch] = useState<string>("");
     return (
-      <GridToolbarContainer sx={{ justifyContent: "space-between", mb: 2 }}>
-        <Stack direction="row" spacing={2}>
+      <GridToolbarContainer
+        sx={{ justifyContent: "space-between", width: "100%" }}
+      >
+        <Stack direction="row" spacing={1}>
           <GridToolbarExport />
         </Stack>
-        <Stack direction={"row"} spacing={1} alignItems={"center"}>
+        <Stack direction="row" spacing={1} alignItems="center">
           <TextField
             size="small"
-            placeholder="search..."
+            placeholder="Search…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <Button variant="outlined" onClick={() => getTableData({ search })}>
+          <Button variant="outlined" onClick={() => refetch()}>
             Search
           </Button>
         </Stack>
@@ -126,43 +107,27 @@ export default function ListLoggerView() {
         navigation={[
           {
             label: "Logger",
-            link: "/logger",
+            link: ROUTES.logger,
             icon: <IconMenus.logger fontSize="small" />,
           },
         ]}
       />
-      <Box
-        sx={{
-          width: "100%",
-          "& .actions": {
-            color: "text.secondary",
-          },
-          "& .textPrimary": {
-            color: "text.primary",
-          },
-        }}
-      >
-        <DataGrid
-          rows={tableData}
-          columns={columns}
-          editMode="row"
-          getRowId={(row: any) => row.appLogId}
-          sx={{ backgroundColor: "background.default", p: 2 }}
-          autoHeight
-          initialState={{
-            pagination: { paginationModel: { pageSize: 2, page: 1 } },
-          }}
-          loading={loading}
-          pageSizeOptions={[2, 5, 10, 25]}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          slots={{
-            toolbar: CustomToolbar,
-          }}
-          rowCount={rowCount}
-          paginationMode="server"
-        />
-      </Box>
+      <PageHeader
+        title="Application logs"
+        subtitle="Browse and export recent system events"
+      />
+      <AppDataGrid
+        rows={tableData}
+        columns={columns}
+        getRowId={(row) => row.appLogId}
+        loading={loading}
+        pageSizeOptions={[5, 10, 25]}
+        paginationModel={paginationModel}
+        onPaginationModelChange={setPaginationModel}
+        slots={{ toolbar: CustomToolbar }}
+        rowCount={rowCount}
+        paginationMode="server"
+      />
     </>
   );
 }

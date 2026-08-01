@@ -1,0 +1,97 @@
+---
+description: Recommend Conventional Commit messages after code changes; do not commit unless asked
+alwaysApply: true
+---
+
+# Git Commit Message Recommendations
+
+After completing any task that **modifies application or project files**, end the response with a **recommended commit message**—even if the user did not ask for one.
+
+Do **not** run `git commit` unless the user explicitly requests it.
+
+## Format (Conventional Commits)
+
+Match the repository's existing history:
+
+```
+<type>(<optional-scope>): <short imperative summary>
+
+<optional body — why, not a file list>
+```
+
+### Types (use the most accurate)
+
+| Type | When |
+|------|------|
+| `feat` | New user-facing behavior or capability |
+| `fix` | Bug fix |
+| `refactor` | Code change without behavior change |
+| `test` | Adding or updating tests only |
+| `docs` | Documentation only |
+| `ci` | CI/CD, GitHub Actions |
+| `chore` | Tooling, deps, config with no app logic change |
+| `style` | Formatting only (no logic change) |
+| `perf` | Measurable performance improvement |
+
+### Scope (optional, lowercase)
+
+Use domain or area when helpful: `services`, `devices`, `api`, `auth`, `ci`, `embedding`, `rules`.
+
+Omit scope when the change spans many areas or scope adds no clarity.
+
+### Subject line rules
+
+- **Imperative mood**: "add", "fix", "update" — not "added", "fixes", "updating"
+- **Lowercase** after the colon (repo convention)
+- **≤ 72 characters** when possible
+- **No period** at the end
+- Focus on **why / intent**, not a bullet list of every file
+
+### Body (optional)
+
+Add a body when the change is non-trivial:
+
+- 1–3 sentences explaining motivation or impact
+- Mention breaking changes explicitly: `BREAKING CHANGE: …`
+
+## Examples from this repo
+
+```
+feat(api): migrate HTTP integration to TanStack Query
+
+refactor(services): add per-page domain services and wire pages to use them
+
+test: add unit tests for domain services and hooks
+
+ci: add GitHub Actions for lint/test on push and Firebase deploy on master
+
+fix(devices): disable pagination prev/next at bounds and while loading
+```
+
+## When to skip the recommendation
+
+- **Question-only** or **read-only** tasks (no files changed)
+- User explicitly says not to include a commit message
+
+## When multiple logical changes exist
+
+Recommend **one commit per logical unit**. If the working tree mixes unrelated changes, say so and offer separate message suggestions—or suggest splitting before commit.
+
+## Safety (align with project git rules)
+
+- Never commit `.env`, credentials, or secrets
+- Never commit unless explicitly asked
+- Never amend, force-push, or skip hooks unless explicitly requested
+
+## Response format
+
+Place the recommendation at the **end** of the implementation summary:
+
+**Recommended commit message:**
+```
+<type>(<scope>): <summary>
+
+<optional body>
+```
+
+Use a plain fenced code block so the user can copy it directly.

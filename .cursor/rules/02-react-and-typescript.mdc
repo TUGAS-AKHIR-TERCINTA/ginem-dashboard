@@ -1,0 +1,63 @@
+---
+description: React component standards and TypeScript strictness for this codebase
+globs:
+  - "src/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# React & TypeScript
+
+## React (this repo)
+
+- Functional components only; `.tsx` for JSX, `.ts` otherwise.
+- **Default exports** are used for pages (lazy-loaded in `AppRoutes`)—match that for new pages.
+- Named exports for hooks, services, utilities, and most feature components.
+- Define props with explicit interfaces/types (`DeviceCardProps`, not inline anonymous objects for public components).
+- No side effects during render; no conditional hooks; stable hook order.
+- Do not define components inside components unless closure is required.
+- List keys: use stable IDs (`deviceId`, `indexingId`)—not array index when IDs exist.
+- Early returns for loading / error / empty / access-denied states.
+- Do **not** use `React.FC` (not the repo convention).
+- Memoization (`useMemo`, `useCallback`, `memo`) only with measurable need—default is no memo.
+
+## TypeScript (tsconfig: strict)
+
+- `strict: true`, `noUnusedLocals`, `noUnusedParameters`—fix unused symbols.
+- Avoid `any`. Legacy exception: `app.context.tsx`—do not add new `any`.
+- Use `unknown` + narrowing for untrusted values (errors, route params, API edge cases).
+- Reuse domain types from `src/types/` (`IDevice`, `IUser`, `IIndexing`).
+- Reuse service payload/response types from `*Service.ts`.
+- API shared shapes → `src/services/types.ts` (`PaginatedResponse`, `TableQueryParams`).
+- Prefer Zod inference for form DTOs: `type X = z.infer<typeof xSchema>`.
+- No type assertions to hide bugs; no non-null assertion (`!`) without documented invariant.
+- Use `as const` for route and API path objects (see `ROUTES`, `DEVICE_API`).
+
+## Event handler naming
+
+```ts
+// internal handlers
+handleSubmit, handleDelete, handleOpenModal
+
+// callback props
+onSubmit, onDelete, onClose
+```
+
+## File naming
+
+Match primary export: `ListDeviceView.tsx`, `deviceService.ts`, `useDevices.ts`, `adminSchema.ts`.
+
+## Example (typed props + safe optional)
+
+```tsx
+interface DeviceListProps {
+  devices: IDevice[];
+  isLoading: boolean;
+  onRefresh: () => void;
+}
+
+export function DeviceList({ devices, isLoading, onRefresh }: DeviceListProps) {
+  if (isLoading) return <Typography>Loading...</Typography>;
+  if (devices.length === 0) return <Typography>No devices.</Typography>;
+  return (/* ... */);
+}
+```

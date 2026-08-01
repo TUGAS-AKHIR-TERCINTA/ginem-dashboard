@@ -1,13 +1,16 @@
 import Box from "@mui/material/Box";
 import {
-  GridRowsProp,
-  DataGrid,
   GridColDef,
   GridToolbarContainer,
   GridToolbarExport,
 } from "@mui/x-data-grid";
-import { useEffect, useState } from "react";
-import { useHttp } from "../../hooks/http";
+import { useState } from "react";
+import {
+  useAdminListQuery,
+  useCreateAdminMutation,
+  useDeleteAdminMutation,
+  useUpdateAdminMutation,
+} from "@/hooks/services";
 import {
   Button,
   Stack,
@@ -20,13 +23,16 @@ import {
   DialogContent,
   DialogActions,
 } from "@mui/material";
-import BreadCrumberStyle from "../../components/breadcrumb/Index";
-import { IconMenus } from "../../components/icon";
-import { convertTime } from "../../utilities/convertTime";
+import BreadCrumberStyle from "@/components/common/Breadcrumb";
+import PageHeader from "@/components/common/PageHeader";
+import AppDataGrid from "@/components/common/AppDataGrid";
+import { IconMenus } from "@/assets/icons";
+import { convertTime } from "@/utils/convertTime";
 import {
   adminCreateSchema,
   AdminCreateValues,
-} from "../../validations/adminSchema";
+} from "@/utils/validators/adminSchema";
+import { ROUTES } from "@/routes/routes";
 
 interface AdminRow {
   userId: number;
@@ -38,20 +44,25 @@ interface AdminRow {
 }
 
 export default function ListAdminView() {
-  const [tableData, setTableData] = useState<GridRowsProp[] | any>([]);
-  const {
-    handleGetTableDataRequest,
-    handlePostRequest,
-    handleUpdateRequest,
-    handleRemoveRequest,
-  } = useHttp();
-
-  const [loading, setLoading] = useState(false);
-  const [rowCount, setRowCount] = useState(0);
+  const [searchFilter, setSearchFilter] = useState("");
   const [paginationModel, setPaginationModel] = useState({
     pageSize: 10,
     page: 0,
   });
+
+  const { data, isFetching } = useAdminListQuery({
+    page: paginationModel.page + 1,
+    size: paginationModel.pageSize,
+    search: searchFilter,
+  });
+
+  const tableData = data?.items ?? [];
+  const rowCount = data?.totalItems ?? 0;
+  const loading = isFetching;
+
+  const createAdmin = useCreateAdminMutation();
+  const updateAdmin = useUpdateAdminMutation();
+  const deleteAdmin = useDeleteAdminMutation();
 
   const [openCreateModal, setOpenCreateModal] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -78,36 +89,12 @@ export default function ListAdminView() {
   const [deleteTarget, setDeleteTarget] = useState<AdminRow | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
-  const getTableData = async ({ search }: { search: string }) => {
-    try {
-      setLoading(true);
-      const result = await handleGetTableDataRequest({
-        path: "/admins",
-        page: paginationModel.page + 1,
-        size: paginationModel.pageSize,
-        filter: { search },
-      });
-
-      if (result && result?.items) {
-        setTableData(result?.items);
-        setRowCount(result.totalItems ?? 0);
-      }
-    } catch (error: any) {
-      console.log(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    getTableData({ search: "" });
-  }, []);
-
   const columns: GridColDef[] = [
     {
       field: "userName",
       flex: 1,
-      renderHeader: () => <strong>{"ADMIN"}</strong>,
+      minWidth: 200,
+      headerName: "Admin",
       renderCell: (params) => (
         <Stack direction="row" spacing={1.5} alignItems="center">
           <Avatar
@@ -134,12 +121,12 @@ export default function ListAdminView() {
     {
       field: "userRole",
       width: 120,
-      renderHeader: () => <strong>{"ROLE"}</strong>,
+      headerName: "Role",
       renderCell: (params) => (
         <Chip
           label={params.value || "admin"}
           size="small"
-          color="error"
+          color="primary"
           variant="outlined"
           sx={{ textTransform: "capitalize" }}
         />
@@ -148,7 +135,7 @@ export default function ListAdminView() {
     {
       field: "userOnboardingStatus",
       width: 140,
-      renderHeader: () => <strong>{"ONBOARDING"}</strong>,
+      headerName: "Onboarding",
       renderCell: (params) => {
         const status = (params.value || "").toLowerCase();
         const color =
@@ -171,13 +158,13 @@ export default function ListAdminView() {
     {
       field: "createdAt",
       width: 170,
-      renderHeader: () => <strong>{"JOINED AT"}</strong>,
+      headerName: "Joined at",
       valueFormatter: (item) => convertTime(item.value),
     },
     {
       field: "actions",
       width: 190,
-      renderHeader: () => <strong>{"ACTION"}</strong>,
+      headerName: "Action",
       sortable: false,
       filterable: false,
       renderCell: (params) => {
@@ -243,7 +230,7 @@ export default function ListAdminView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <Button variant="outlined" onClick={() => getTableData({ search })}>
+          <Button variant="outlined" onClick={() => setSearchFilter(search)}>
             Search
           </Button>
         </Stack>
@@ -257,40 +244,26 @@ export default function ListAdminView() {
         navigation={[
           {
             label: "Admins",
-            link: "/admins",
+            link: ROUTES.admins,
             icon: <IconMenus.admin fontSize="small" />,
           },
         ]}
       />
-      <Box
-        sx={{
-          width: "100%",
-          "& .MuiDataGrid-columnHeaders": {
-            fontWeight: 700,
-            backgroundColor: "action.hover",
-          },
+      <PageHeader title="Admins" subtitle="Manage administrator accounts" />
+      <AppDataGrid
+        rows={tableData}
+        columns={columns}
+        getRowId={(row: AdminRow) => row.userId}
+        pageSizeOptions={[5, 10, 25, 50]}
+        paginationModel={paginationModel}
+        onPaginationModelChange={setPaginationModel}
+        slots={{
+          toolbar: CustomToolbar,
         }}
-      >
-        <DataGrid
-          rows={tableData}
-          columns={columns}
-          getRowId={(row: AdminRow) => row.userId}
-          sx={{ padding: 2, backgroundColor: "background.default" }}
-          initialState={{
-            pagination: { paginationModel: { pageSize: 10, page: 0 } },
-          }}
-          autoHeight
-          pageSizeOptions={[5, 10, 25, 50]}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          slots={{
-            toolbar: CustomToolbar,
-          }}
-          rowCount={rowCount}
-          paginationMode="server"
-          loading={loading}
-        />
-      </Box>
+        rowCount={rowCount}
+        paginationMode="server"
+        loading={loading}
+      />
 
       <Dialog
         open={openCreateModal}
@@ -381,25 +354,24 @@ export default function ListAdminView() {
               setCreateError(null);
               setCreateFieldErrors({});
               try {
-                await handlePostRequest({
-                  path: "/admins",
-                  body: {
-                    userName: parsed.data.userName,
-                    userEmail: parsed.data.userEmail,
-                    userPassword: parsed.data.userPassword,
-                  },
+                await createAdmin.mutateAsync({
+                  userName: parsed.data.userName,
+                  userEmail: parsed.data.userEmail,
+                  userPassword: parsed.data.userPassword,
                 });
                 setOpenCreateModal(false);
                 setCreateName("");
                 setCreateEmail("");
                 setCreatePassword("");
-                getTableData({ search: "" });
-              } catch (error: any) {
+              } catch (error: unknown) {
                 console.error(error);
-                setCreateError(error?.message ?? "Gagal menambah admin.");
+                setCreateError(
+                  error instanceof Error
+                    ? error.message
+                    : "Gagal menambah admin.",
+                );
               } finally {
                 setCreateSubmitting(false);
-                getTableData({ search: "" });
               }
             }}
             disabled={createSubmitting}
@@ -500,7 +472,12 @@ export default function ListAdminView() {
               setEditError(null);
               setEditFieldErrors({});
               try {
-                const body: any = {
+                const body: {
+                  userId: number;
+                  userName: string;
+                  userEmail: string;
+                  userPassword?: string;
+                } = {
                   userId: editTarget.userId,
                   userName: parsed.data.userName,
                   userEmail: parsed.data.userEmail,
@@ -509,15 +486,15 @@ export default function ListAdminView() {
                   body.userPassword = parsed.data.userPassword;
                 }
 
-                await handleUpdateRequest({
-                  path: "/admins",
-                  body,
-                });
+                await updateAdmin.mutateAsync(body);
                 setOpenEditModal(false);
-                getTableData({ search: "" });
-              } catch (error: any) {
+              } catch (error: unknown) {
                 console.error(error);
-                setEditError(error?.message ?? "Gagal mengupdate admin.");
+                setEditError(
+                  error instanceof Error
+                    ? error.message
+                    : "Gagal mengupdate admin.",
+                );
               } finally {
                 setEditSubmitting(false);
               }
@@ -544,7 +521,7 @@ export default function ListAdminView() {
         <DialogContent>
           <Typography>
             {deleteTarget
-              ? `Yakin ingin menghapus admin \"${deleteTarget.userName}\" (${deleteTarget.userEmail})?`
+              ? `Yakin ingin menghapus admin "${deleteTarget.userName}" (${deleteTarget.userEmail})?`
               : ""}
           </Typography>
         </DialogContent>
@@ -567,12 +544,9 @@ export default function ListAdminView() {
               if (!deleteTarget) return;
               setDeleteSubmitting(true);
               try {
-                await handleRemoveRequest({
-                  path: `/admins/${deleteTarget.userId}`,
-                });
+                await deleteAdmin.mutateAsync(deleteTarget.userId);
                 setOpenDeleteModal(false);
                 setDeleteTarget(null);
-                getTableData({ search: "" });
               } catch (error) {
                 console.error(error);
               } finally {

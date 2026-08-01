@@ -1,0 +1,76 @@
+---
+description: Rules for pages, feature modules, and shared components
+globs:
+  - "src/pages/**/*.tsx"
+  - "src/features/**/*.tsx"
+  - "src/components/**/*.tsx"
+alwaysApply: false
+---
+
+# Components, Pages & Features
+
+## Pages (`src/pages/<domain>/`)
+
+Pages are **orchestration layers**:
+
+- Compose layout sections and feature components
+- Read `useParams`, `useSearchParams`, `useNavigate`
+- Call domain hooks from `@/hooks/services` (e.g. `useDeviceListQuery`, `useCreateDeviceMutation`)
+- Coordinate loading, error, empty, and success UI
+- Keep JSX readable—extract sections into feature components when long
+
+Pages must **NOT**:
+
+- Call `apiClient`, `api`, or `axios` directly
+- Hardcode paths like `"/devices"` or `"/auth/login"`
+- Host reusable UI used on other pages
+- Grow past ~400 lines without extraction
+
+```tsx
+// ✅ Page pattern
+const { data, isFetching, isError } = useDeviceListQuery({ page, size, search });
+const createDevice = useCreateDeviceMutation();
+await createDevice.mutateAsync(body); // typed payload, no { path, body }
+```
+
+## Features (`src/features/<domain>/components/`)
+
+Place UI here when it is **domain-specific** (DeviceCard, FormDevice, DeleteModalDevice, ChatWidget).
+
+Feature components may:
+
+- Accept typed props and callbacks from the page
+- Use domain types from `@/types/`
+- Call domain hooks only when the interaction is self-contained and reused (prefer page-level wiring for clarity)
+
+Feature components must **NOT**:
+
+- Register routes
+- Define API endpoints
+
+## Shared components (`src/components/`)
+
+- `common/` — Breadcrumb, generic modals, table primitives, status chips
+- `layout/` — `AppLayout`, `AuthLayout`
+
+Shared components must be **domain-agnostic**: no `@/services/*` imports, no `ROUTES` to domain pages unless the component is explicitly navigation chrome (sidebar items belong in layout, reading `ROUTES`).
+
+## Forms in this repo
+
+- Validation schemas live in `src/utils/validators/` (Zod).
+- Admin flows use `adminCreateSchema.safeParse()` with field-level errors—follow that pattern.
+- `react-hook-form` is available but not the dominant pattern—use Zod + local state unless building a complex form that benefits from RHF.
+- Prevent duplicate submit: disable buttons while `mutation.isPending`.
+- Do not close modals or navigate away until mutation succeeds (unless explicit optimistic UX).
+
+## MUI usage
+
+- Use MUI components and `sx` prop consistently with existing pages.
+- Use theme tokens from `createAppTheme` (`src/styles/theme.ts`)—avoid hardcoded colors when theme palette applies.
+- Data grids: `@mui/x-data-grid` with server pagination pattern from `ListDeviceView` / `ListAdminsView`.
+
+## Accessibility baseline
+
+- Use `<Button>` for actions, not clickable `<div>`.
+- Label inputs; `aria-label` on icon-only buttons.
+- Preserve keyboard focus and modal focus trap (MUI Dialog handles this when used correctly).

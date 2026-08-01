@@ -1,6 +1,10 @@
 import Box from "@mui/material/Box";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useHttp } from "../../hooks/http";
+import {
+  useCreateEmbeddingMutation,
+  useDeleteEmbeddingMutation,
+  useEmbeddingListQuery,
+} from "@/hooks/services";
 import {
   Alert,
   Button,
@@ -22,14 +26,14 @@ import {
   Typography,
 } from "@mui/material";
 import {
-  DataGrid,
   GridActionsCellItem,
   GridColDef,
   GridPaginationModel,
 } from "@mui/x-data-grid";
-import BreadCrumberStyle from "../../components/breadcrumb/Index";
-import { IconMenus } from "../../components/icon";
-import { convertTime } from "../../utilities/convertTime";
+import BreadCrumberStyle from "@/components/common/Breadcrumb";
+import AppDataGrid from "@/components/common/AppDataGrid";
+import { IconMenus } from "@/assets/icons";
+import { convertTime } from "@/utils/convertTime";
 import { useSearchParams } from "react-router-dom";
 import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -40,9 +44,9 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
 import CircularProgress from "@mui/material/CircularProgress";
-import { useAppContext } from "../../context/app.context";
-import { IIndexing } from "../../interfaces/Indexing";
-import DeleteModalIndexing from "./DeleteModalIndexing";
+import { useAppContext } from "@/context/app.context";
+import { IIndexing } from "@/types/Indexing";
+import DeleteModalIndexing from "@/features/embedding/components/DeleteModalIndexing";
 
 const INDEX_SOURCE_OPTIONS = ["text", "pdf", "json"] as const;
 const CONTENT_PREVIEW_MAX = 200;
@@ -186,21 +190,41 @@ function EmbeddingListToolbar({
 }
 
 export default function ListEmbeddingView() {
-  const [tableData, setTableData] = useState<IIndexing[]>([]);
-  const { handleGetTableDataRequest, handlePostRequest, handleRemoveRequest } =
-    useHttp();
   const { setAppAlert } = useAppContext();
   const [searchParams, setSearchParams] = useSearchParams();
+  const searchParamKey = searchParams.get("search") ?? "";
 
-  const [loading, setLoading] = useState(false);
-  const [rowCount, setRowCount] = useState(0);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 10,
   });
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [refreshToken, setRefreshToken] = useState(0);
+
+  const apiPage = paginationModel.page + 1;
+
+  const { data, isFetching, isError, refetch, dataUpdatedAt } =
+    useEmbeddingListQuery({
+      page: apiPage,
+      size: paginationModel.pageSize,
+      search: searchParamKey,
+    });
+
+  const rows = useMemo(
+    () =>
+      (data?.items ?? []).map((row: IIndexing) => ({
+        ...row,
+        id: row.indexingId,
+      })),
+    [data?.items],
+  );
+  const rowCount = data?.totalItems ?? 0;
+  const loading = isFetching;
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+  const errorMessage = isError
+    ? "Failed to load vector indexes. Please try again."
+    : null;
+
+  const createIndexing = useCreateEmbeddingMutation();
+  const deleteIndexing = useDeleteEmbeddingMutation();
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [documentRows, setDocumentRows] = useState<IndexingDocumentDraft[]>([
@@ -213,14 +237,11 @@ export default function ListEmbeddingView() {
     indexingId: number;
     preview: string | null;
   } | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [contentDetail, setContentDetail] = useState<{
     indexingId: number;
     content: string;
   } | null>(null);
-
-  const apiPage = paginationModel.page + 1;
 
   const resetAddForm = () => {
     setDocumentRows([defaultDocumentRow()]);
@@ -256,63 +277,18 @@ export default function ListEmbeddingView() {
     setFormError(null);
     setSubmitIndexingLoading(true);
     try {
-      const result = await handlePostRequest({
-        path: "/indexing",
-        body: { documents },
+      await createIndexing.mutateAsync({ documents });
+      setAppAlert({
+        isDisplayAlert: true,
+        message: "Content submitted for indexing.",
+        alertType: "success",
       });
-      if (result !== undefined && result !== null) {
-        setAppAlert({
-          isDisplayAlert: true,
-          message: "Content submitted for indexing.",
-          alertType: "success",
-        });
-        setAddModalOpen(false);
-        resetAddForm();
-        setRefreshToken((t) => t + 1);
-      }
+      setAddModalOpen(false);
+      resetAddForm();
     } finally {
       setSubmitIndexingLoading(false);
     }
   };
-
-  useEffect(() => {
-    const search = searchParams.get("search") || "";
-    let cancelled = false;
-
-    (async () => {
-      try {
-        setLoading(true);
-        setErrorMessage(null);
-        const result = await handleGetTableDataRequest({
-          path: "/indexing",
-          page: apiPage,
-          size: paginationModel.pageSize,
-          filter: { search },
-        });
-
-        if (cancelled) return;
-
-        if (result && result?.items) {
-          setTableData(result.items);
-          setRowCount(result.totalItems ?? 0);
-          setLastUpdated(new Date());
-        }
-      } catch (error: unknown) {
-        if (!cancelled) {
-          console.error(error);
-          setErrorMessage("Failed to load vector indexes. Please try again.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [apiPage, paginationModel.pageSize, searchParams, refreshToken]);
-
-  const searchParamKey = searchParams.get("search") ?? "";
 
   const handleApplySearch = (search: string) => {
     const newSearchParams = new URLSearchParams();
@@ -353,29 +329,23 @@ export default function ListEmbeddingView() {
   }, []);
 
   const handleCloseDeleteModal = useCallback(() => {
-    if (!deleteLoading) setDeleteTarget(null);
-  }, [deleteLoading]);
+    if (!deleteIndexing.isPending) setDeleteTarget(null);
+  }, [deleteIndexing.isPending]);
 
   const handleConfirmDeleteIndexing = useCallback(async () => {
     if (!deleteTarget) return;
-    setDeleteLoading(true);
     try {
-      const result = await handleRemoveRequest({
-        path: `/indexing/${deleteTarget.indexingId}`,
+      await deleteIndexing.mutateAsync(deleteTarget.indexingId);
+      setAppAlert({
+        isDisplayAlert: true,
+        message: "Vector index deleted.",
+        alertType: "success",
       });
-      if (result !== undefined && result !== null) {
-        setAppAlert({
-          isDisplayAlert: true,
-          message: "Vector index deleted.",
-          alertType: "success",
-        });
-        setDeleteTarget(null);
-        setRefreshToken((t) => t + 1);
-      }
-    } finally {
-      setDeleteLoading(false);
+      setDeleteTarget(null);
+    } catch {
+      // Error handled by mutation hook
     }
-  }, [deleteTarget, handleRemoveRequest, setAppAlert]);
+  }, [deleteTarget, deleteIndexing, setAppAlert]);
 
   const columns: GridColDef<IIndexing & { id: number }>[] = useMemo(
     () => [
@@ -457,15 +427,6 @@ export default function ListEmbeddingView() {
     [handleOpenContentDetail, handleOpenDeleteModal],
   );
 
-  const rows = useMemo(
-    () =>
-      tableData.map((row) => ({
-        ...row,
-        id: row.indexingId,
-      })),
-    [tableData],
-  );
-
   return (
     <Box sx={{ pb: 2 }}>
       <BreadCrumberStyle
@@ -515,7 +476,7 @@ export default function ListEmbeddingView() {
           <EmbeddingListToolbar
             searchParamKey={searchParamKey}
             loading={loading}
-            onRefresh={() => setRefreshToken((t) => t + 1)}
+            onRefresh={() => refetch()}
             onApplySearch={handleApplySearch}
             onResetFilters={handleResetFilters}
           />
@@ -527,7 +488,8 @@ export default function ListEmbeddingView() {
             />
           ) : (
             <Box sx={{ mt: 2, width: "100%" }}>
-              <DataGrid
+              <AppDataGrid
+                withSurface={false}
                 rows={rows}
                 columns={columns}
                 loading={loading}
@@ -536,20 +498,6 @@ export default function ListEmbeddingView() {
                 paginationModel={paginationModel}
                 paginationMode="server"
                 onPaginationModelChange={setPaginationModel}
-                disableRowSelectionOnClick
-                density="compact"
-                autoHeight
-                sx={{
-                  border: "none",
-                  "& .MuiDataGrid-columnHeaders": {
-                    fontWeight: 700,
-                    bgcolor: "action.hover",
-                  },
-                  "& .MuiDataGrid-cell": {
-                    alignItems: "center",
-                    display: "flex",
-                  },
-                }}
               />
             </Box>
           )}
@@ -677,7 +625,7 @@ export default function ListEmbeddingView() {
 
       <DeleteModalIndexing
         open={deleteTarget !== null}
-        loading={deleteLoading}
+        loading={deleteIndexing.isPending}
         indexingId={deleteTarget?.indexingId ?? null}
         previewLabel={deleteTarget?.preview ?? null}
         onClose={handleCloseDeleteModal}

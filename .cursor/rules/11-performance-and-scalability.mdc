@@ -1,0 +1,51 @@
+---
+description: Lazy loading, query cache, rerenders, and scalable module design
+globs:
+  - "src/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Performance & Scalability
+
+## Code splitting (established)
+
+- All main pages lazy-loaded in `AppRoutes.tsx` with `Suspense` fallback.
+- New pages **must** use `lazy(() => import(...))` + `withSuspense`.
+
+## Data fetching
+
+- Use **server pagination** via `getTableData` / `useTableDataQuery`—do not fetch entire datasets when API supports pagination.
+- Default Query `staleTime: 30s`—avoid redundant refetches; override only when needed.
+- Polling: use sparingly (`refetchInterval`); disable when tab/feature inactive.
+- Invalidate narrowly (`tableRoot`, specific `get` path)—not global cache clears.
+
+## Renders
+
+- No automatic `memo` / `useCallback`—add only when profiling shows benefit.
+- Avoid oversized Context values that change every render and re-render the tree.
+- Keep page state local; lift only when multiple children need it.
+
+## Bundle hygiene
+
+- Import MUI icons individually (`@mui/icons-material/Search`)—already the pattern.
+- Do not import entire lodash-style libraries for one function.
+
+## DataGrid / lists
+
+- Server `paginationMode="server"` with correct `rowCount`.
+- Consider virtualization only when measured performance issue exists (MUI DataGrid has built-in virtualization).
+
+## Scalability without over-engineering
+
+- Add a new `*Service.ts` + `hooks/services/use*.ts` per domain—do not build generic meta-frameworks.
+- Extract shared code when **second** legitimate use appears—not before.
+
+## Build
+
+- Output dir: `build/` for Firebase Hosting deploy workflow.
+- Run `npm run build` after significant changes—catches TS errors via `tsc`.
+
+## Images & assets
+
+- Optimize large static images before adding to `assets/images/`.
+- Prefer SVG icons from existing sets.

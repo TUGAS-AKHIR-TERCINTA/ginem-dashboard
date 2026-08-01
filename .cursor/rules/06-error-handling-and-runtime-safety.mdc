@@ -1,0 +1,62 @@
+---
+description: Centralized error handling, async state safety, and crash prevention
+alwaysApply: true
+---
+
+# Error Handling & Runtime Safety
+
+## Error layers (this repo)
+
+| Layer | Responsibility |
+|-------|----------------|
+| `api.ts` interceptor | 401 → clear token, redirect `/`; normalize Axios message → `Error` |
+| `useApiErrorHandler` | Show `setAppAlert` toast for user-facing errors |
+| Query hooks (`useApiGet`, `useTableDataQuery`) | Call `onError` in `queryFn`, rethrow for query state |
+| Page / feature UI | `isError`, `isLoading`, empty states, retry via `refetch()` |
+
+Do not swallow errors in empty `catch` blocks. Log with `console.error` in handlers—not silent failure.
+
+## User-facing messages
+
+- Show friendly messages via app alert or inline `<Alert severity="error">`.
+- Do not expose stack traces, tokens, or raw server payloads.
+- Do not fabricate success data on failure.
+
+## Async UI states (required for every user flow)
+
+Define handling for:
+
+1. Initial / loading (`isLoading`, `isFetching`, `mutation.isPending`)
+2. Success
+3. Error (`isError`, mutation error + alert)
+4. Empty (zero rows / null data)
+5. Submitting (disable buttons, show spinner)
+6. Retry (`refetch()` or explicit retry button)
+
+## Runtime safety rules
+
+- Optional chain or guards for nullable API fields—never assume nested objects exist.
+- Do not render objects directly in JSX.
+- Validate route params before API calls; use `enabled: Boolean(id)` in queries.
+- Prevent duplicate submissions: check `isPending` before `mutateAsync`.
+- Clean up intervals/listeners in `useEffect` return.
+- Avoid unstable objects in query keys (filters are serialized in `useTableDataQuery`—good).
+- Do not cause infinite loops: correct effect deps; do not set state synchronously from effects for derivable values.
+- Lazy route failures: root route has `errorElement: <ErrorPage />`—use for unexpected render errors.
+
+## Error narrowing
+
+```ts
+const message =
+  error instanceof Error ? error.message : "Request failed";
+```
+
+Do not assume every caught value is an Axios error at the UI layer—the interceptor already normalizes to `Error`.
+
+## Known gap
+
+`api.ts` uses `console.log(message)` on errors—prefer `console.error` in new code; do not add more render-time logging.
+
+## Error boundaries
+
+No app-wide React error boundary beyond router `errorElement` today. For isolated widget failures, consider a local boundary when adding risky third-party UI—do not let one chart crash the whole dashboard without fallback.

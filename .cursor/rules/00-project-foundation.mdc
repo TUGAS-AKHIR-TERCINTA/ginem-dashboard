@@ -1,0 +1,77 @@
+---
+description: Project stack, verified dependencies, quality gates, and core engineering principles for this dashboard app
+alwaysApply: true
+---
+
+# Project Foundation
+
+## Verified stack (do not assume others exist)
+
+| Layer | Library / tool |
+|-------|----------------|
+| UI | React 18, MUI 5, Emotion, styled-components |
+| Build | Vite 5 (`build/` output, not `dist/`) |
+| Language | TypeScript (`strict`, `@/` → `src/`) |
+| Routing | React Router v6 (`createBrowserRouter`) |
+| Server state | TanStack Query v5 |
+| HTTP | Axios via `src/services/api.ts` → `apiClient` |
+| Forms / validation | Zod (`src/utils/validators/`); `react-hook-form` is installed but rarely used—prefer existing Zod patterns unless a form justifies RHF |
+| Testing | Vitest + Testing Library + jsdom |
+| Lint | ESLint (`max-warnings: 0` in CI)—**no Prettier config** |
+| Charts | ApexCharts (where used) |
+
+**Not used in `src/` today:** WebSocket, Firebase (dependency exists but unused), react-hook-form in pages.
+
+## Available npm scripts
+
+```bash
+npm run dev          # dev server
+npm run build        # tsc && vite build (TypeScript check + production build)
+npm run lint         # ESLint, zero warnings allowed
+npm test             # Vitest watch
+npm run test:run     # Vitest CI mode
+npm run test:coverage
+```
+
+There is **no** `typecheck` script—use `npm run build` for TypeScript validation.
+
+CI (`.github/workflows/ci.yml`) runs: `npm run lint` → `npm run test:run`.
+
+## Core principles (always)
+
+1. **Separation of concerns** — pages orchestrate; features render domain UI; services call APIs; hooks manage server state; utils are pure.
+2. **Single responsibility** — one primary job per file; split when a module mixes HTTP, UI, and routing.
+3. **Low coupling** — no cross-feature imports of internal modules; extract shared code deliberately.
+4. **Minimal change surface** — smallest safe diff; no drive-by refactors.
+5. **Predictable data flow** — immutable updates; never mutate props, query cache, or API responses.
+6. **Backward compatibility** — preserve public contracts (props, routes, query keys, service signatures) unless explicitly breaking.
+
+## Import alias
+
+Always prefer `@/` for imports from `src/`:
+
+```ts
+import { deviceService } from "@/services/deviceService";
+import { ROUTES } from "@/routes/routes";
+```
+
+## Prohibited (global)
+
+- Direct Axios/`fetch` in pages, features, or shared components
+- Multiple Axios instances outside `src/services/api.ts`
+- Hardcoded API paths in UI (use `*Service.ts` + `*_API` constants)
+- Hardcoded route strings (use `ROUTES` in `src/routes/routes.ts`)
+- Inline TanStack Query keys (use `src/services/query-keys.ts`)
+- `any` to silence errors (legacy `any` in `app.context.tsx`—do not extend)
+- Secrets or tokens in source, logs, or commits
+- New dependencies without explicit user approval
+- Claiming lint/test/build passed without running commands
+
+## Repository gaps (known—not fixed by rules alone)
+
+- Query keys are **path-based** (`queryKeys.get(path)`, `queryKeys.table(path, params)`), not nested domain factories.
+- `ROUTES` uses **camelCase** keys (`home`, `login`), not `UPPER_SNAKE`.
+- Auth is token-in-`localStorage` via `useToken` + route split in `AppRoutes`; no role-based guards in UI yet.
+- `app.context.tsx` contains legacy `any` types—tighten when touched, do not spread pattern.
+
+Do not silently replace these patterns with a different architecture. Evolve incrementally and document breaking changes.

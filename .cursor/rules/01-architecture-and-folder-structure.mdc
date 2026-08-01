@@ -1,0 +1,72 @@
+---
+description: Folder layout, layer boundaries, and module ownership for src/
+globs:
+  - "src/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Architecture & Folder Structure
+
+## Target layout (verified in repo)
+
+```
+src/
+├── assets/{images,fonts,icons}/
+├── components/{common,layout}/
+├── features/<domain>/components/
+├── pages/<domain>/           # route-level views ONLY
+├── routes/{AppRoutes.tsx,routes.ts}
+├── hooks/{api,services}/     # generic + domain TanStack hooks
+├── context/
+├── services/                 # api.ts + *Service.ts per domain
+├── utils/validators/
+├── types/
+├── styles/
+├── config/                   # env.ts — single env access point
+├── providers/
+├── test/
+├── App.tsx
+└── main.tsx
+```
+
+See `STRUCTURE.md` for the canonical reference.
+
+## Layer responsibilities
+
+| Layer | Owns | Must NOT |
+|-------|------|----------|
+| `pages/` | Route composition, params, page-level states, wiring hooks → UI | Direct HTTP, reusable cross-page UI, heavy domain logic |
+| `features/` | Domain-specific UI (cards, forms, modals) | Route registration, API calls, global reusable primitives |
+| `components/common/` | Generic UI (breadcrumb, empty/error states) | Domain API calls, domain types |
+| `components/layout/` | AppLayout, AuthLayout | Business logic |
+| `services/` | Endpoint paths, typed requests/responses | React hooks, JSX, toasts, navigation |
+| `hooks/api/` | Generic `useApiGet`, `useTableDataQuery`, `useService*Mutation` | Domain-specific endpoint strings |
+| `hooks/services/` | Domain queries/mutations wrapping services | JSX |
+| `utils/` | Pure helpers, Zod schemas | API calls, React |
+
+## Adding a new domain feature
+
+1. Page → `src/pages/<domain>/`
+2. Route constant → `src/routes/routes.ts`
+3. Lazy route → `src/routes/AppRoutes.tsx`
+4. Feature UI → `src/features/<domain>/components/` (when needed)
+5. Service → `src/services/<domain>Service.ts` with `<DOMAIN>_API` paths
+6. Hooks → `src/hooks/services/use<Domain>.ts`
+7. Types → `src/types/` (shared) or colocated in service when API-specific
+8. Tests → mirror path: `*.test.ts(x)` next to module or under `src/test/`
+
+Do **not** create empty `hooks/`, `utils/`, `constants/` folders inside features until needed.
+
+## Cross-feature reuse
+
+- Shared across 2+ domains → `components/common/` or `utils/`
+- Used once → keep inside the feature
+- Never import `features/A/components/X` from `features/B`—extract upward instead
+
+## Barrel files
+
+Avoid new `index.ts` barrel re-exports unless the repo already uses that pattern for the module (`hooks/api/index.ts`, `services/index.ts` are established).
+
+## Build output
+
+Production build writes to **`build/`** (configured in `vite.config.ts`).

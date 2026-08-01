@@ -1,6 +1,11 @@
 import Box from "@mui/material/Box";
 import { useEffect, useState } from "react";
-import { useHttp } from "../../hooks/http";
+import {
+  useCreateDeviceMutation,
+  useDeleteDeviceMutation,
+  useDeviceListQuery,
+  useUpdateDeviceMutation,
+} from "@/hooks/services";
 import {
   Alert,
   Button,
@@ -14,22 +19,24 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import BreadCrumberStyle from "../../components/breadcrumb/Index";
-import { IconMenus } from "../../components/icon";
-import DeviceCard, { DeviceCardItem } from "../../components/DeviceCard";
-import { convertTime } from "../../utilities/convertTime";
+import BreadCrumberStyle from "@/components/common/Breadcrumb";
+import { IconMenus } from "@/assets/icons";
+import DeviceCard, {
+  DeviceCardItem,
+} from "@/features/devices/components/DeviceCard";
+import { convertTime } from "@/utils/convertTime";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CloseIcon from "@mui/icons-material/Close";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import AddIcon from "@mui/icons-material/Add";
-import { IDevice } from "../../interfaces/Device";
+import { IDevice } from "@/types/Device";
 import FormDevice, {
   DeviceCreateFormState,
   DeviceEditFormState,
-} from "./FormDevice";
-import DeleteModalDevice from "./DeleteModalDevice";
+} from "@/features/devices/components/FormDevice";
+import DeleteModalDevice from "@/features/devices/components/DeleteModalDevice";
 
 function NoRowsOverlay({
   title,
@@ -72,79 +79,52 @@ const initialEditFormState: DeviceEditFormState = {
 };
 
 export default function ListDeviceView() {
-  const [tableData, setTableData] = useState<IDevice[]>([]);
-
-  const {
-    handleGetTableDataRequest,
-    handlePostRequest,
-    handleRemoveRequest,
-    handleUpdateRequest,
-  } = useHttp();
-
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const search = searchParams.get("search") || "";
 
-  const [loading, setLoading] = useState(false);
-  const [rowCount, setRowCount] = useState(0);
+  // UI pagination is 0-based; API expects page >= 1
   const [paginationModel, setPaginationModel] = useState({
     pageSize: 10,
-    page: 1,
+    page: 0,
   });
 
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const { data, isFetching, isError, refetch, dataUpdatedAt } =
+    useDeviceListQuery({
+      page: paginationModel.page + 1,
+      size: paginationModel.pageSize,
+      search,
+      refetchInterval: 5000,
+    });
+
+  const tableData = data?.items ?? [];
+  const rowCount = data?.totalItems ?? 0;
+  const loading = isFetching;
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+  const errorMessage = isError
+    ? "Failed to load devices. Please try again."
+    : null;
+
+  const createDevice = useCreateDeviceMutation();
+  const updateDevice = useUpdateDeviceMutation();
+  const deleteDevice = useDeleteDeviceMutation();
 
   const [openAddModal, setOpenAddModal] = useState(false);
-  const [submitLoading, setSubmitLoading] = useState(false);
   const [addFormError, setAddFormError] = useState<string | null>(null);
   const [addForm, setAddForm] =
     useState<DeviceCreateFormState>(initialFormState);
 
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<{
     deviceId: number;
     deviceName: string;
   } | null>(null);
 
   const [openEditModal, setOpenEditModal] = useState(false);
-  const [editSubmitLoading, setEditSubmitLoading] = useState(false);
   const [editFormError, setEditFormError] = useState<string | null>(null);
   const [deviceToEdit, setDeviceToEdit] = useState<IDevice | null>(null);
   const [editForm, setEditForm] =
     useState<DeviceEditFormState>(initialEditFormState);
-
-  const getTableData = async ({ search }: { search: string }) => {
-    try {
-      setLoading(true);
-      setErrorMessage(null);
-      const result = await handleGetTableDataRequest({
-        path: "/devices",
-        page: paginationModel.page ?? 1,
-        size: paginationModel.pageSize ?? 10,
-        filter: { search },
-      });
-
-      if (result && result?.items) {
-        setTableData(result?.items);
-        setRowCount(result.totalItems ?? 0);
-        setLastUpdated(new Date());
-      }
-    } catch (error: unknown) {
-      console.error(error);
-      setErrorMessage("Failed to load devices. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const search = searchParams.get("search") || "";
-
-    getTableData({
-      search,
-    });
-  }, [paginationModel, searchParams]);
 
   const handleOpenAddModal = () => {
     setAddForm(initialFormState);
@@ -153,7 +133,7 @@ export default function ListDeviceView() {
   };
 
   const handleCloseAddModal = () => {
-    if (!submitLoading) {
+    if (!createDevice.isPending) {
       setOpenAddModal(false);
       setAddForm(initialFormState);
       setAddFormError(null);
@@ -171,7 +151,6 @@ export default function ListDeviceView() {
       return;
     }
     try {
-      setSubmitLoading(true);
       const deviceMetadata: Record<string, string> = {};
 
       if (addForm.deviceMetadataRoom.trim()) {
@@ -195,20 +174,13 @@ export default function ListDeviceView() {
       if (Object.keys(deviceMetadata).length > 0) {
         body.deviceMetadata = deviceMetadata;
       }
-      await handlePostRequest({
-        path: "/devices",
-        body,
-      });
+      await createDevice.mutateAsync(body);
       handleCloseAddModal();
-      const search = searchParams.get("search") || "";
-      getTableData({ search });
     } catch (error: unknown) {
       console.error(error);
       setAddFormError(
         error instanceof Error ? error.message : "Failed to add device.",
       );
-    } finally {
-      setSubmitLoading(false);
     }
   };
 
@@ -218,7 +190,7 @@ export default function ListDeviceView() {
   };
 
   const handleCloseDeleteModal = () => {
-    if (!deleteLoading) {
+    if (!deleteDevice.isPending) {
       setOpenDeleteModal(false);
       setDeviceToDelete(null);
     }
@@ -227,17 +199,10 @@ export default function ListDeviceView() {
   const handleConfirmDelete = async () => {
     if (!deviceToDelete) return;
     try {
-      setDeleteLoading(true);
-      await handleRemoveRequest({
-        path: `/devices/${deviceToDelete.deviceId}`,
-      });
+      await deleteDevice.mutateAsync(deviceToDelete.deviceId);
       handleCloseDeleteModal();
-      const search = searchParams.get("search") || "";
-      getTableData({ search });
     } catch (error: unknown) {
       console.error(error);
-    } finally {
-      setDeleteLoading(false);
     }
   };
 
@@ -260,7 +225,7 @@ export default function ListDeviceView() {
   };
 
   const handleCloseEditModal = () => {
-    if (!editSubmitLoading) {
+    if (!updateDevice.isPending) {
       setOpenEditModal(false);
       setDeviceToEdit(null);
       setEditForm(initialEditFormState);
@@ -278,8 +243,6 @@ export default function ListDeviceView() {
       return;
     }
     try {
-      setEditSubmitLoading(true);
-
       const deviceMetadata: Record<string, string> = {};
 
       if (editForm.deviceMetadataRoom.trim())
@@ -296,21 +259,14 @@ export default function ListDeviceView() {
         deviceMetadata,
       };
 
-      await handleUpdateRequest({
-        path: `/devices`,
-        body,
-      });
+      await updateDevice.mutateAsync(body);
 
       handleCloseEditModal();
-      const search = searchParams.get("search") || "";
-      getTableData({ search });
     } catch (error: unknown) {
       console.error(error);
       setEditFormError(
         error instanceof Error ? error.message : "Failed to update device.",
       );
-    } finally {
-      setEditSubmitLoading(false);
     }
   };
 
@@ -319,9 +275,11 @@ export default function ListDeviceView() {
 
     const [search, setSearch] = useState<string>(initialSearch);
 
+    const currentSearch = searchParams.get("search") || "";
+
     useEffect(() => {
-      setSearch(searchParams.get("search") || "");
-    }, [searchParams]);
+      setSearch(currentSearch);
+    }, [currentSearch]);
 
     const handleSearch = () => {
       const newSearchParams = new URLSearchParams();
@@ -396,7 +354,7 @@ export default function ListDeviceView() {
               <span>
                 <IconButton
                   size="small"
-                  onClick={() => getTableData({ search })}
+                  onClick={() => refetch()}
                   disabled={loading}
                   sx={{
                     border: 1,
@@ -478,7 +436,7 @@ export default function ListDeviceView() {
           />
         ) : (
           <Grid container spacing={2} sx={{ mt: 2 }}>
-            {tableData.map((row) => (
+            {tableData.map((row: IDevice) => (
               <Grid item key={row?.deviceId} xs={12} md={6}>
                 <DeviceCard
                   device={row as DeviceCardItem}
@@ -527,7 +485,7 @@ export default function ListDeviceView() {
 
       <FormDevice
         open={openAddModal}
-        submitLoading={submitLoading}
+        submitLoading={createDevice.isPending}
         formError={addFormError}
         mode="create"
         form={addForm}
@@ -538,7 +496,7 @@ export default function ListDeviceView() {
 
       <FormDevice
         open={openEditModal}
-        submitLoading={editSubmitLoading}
+        submitLoading={updateDevice.isPending}
         formError={editFormError}
         mode="edit"
         form={editForm}
@@ -549,7 +507,7 @@ export default function ListDeviceView() {
 
       <DeleteModalDevice
         open={openDeleteModal}
-        loading={deleteLoading}
+        loading={deleteDevice.isPending}
         deviceName={deviceToDelete?.deviceName ?? null}
         onClose={handleCloseDeleteModal}
         onConfirm={handleConfirmDelete}

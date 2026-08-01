@@ -1,0 +1,62 @@
+---
+description: MUI theming, styling conventions, assets, and accessibility
+globs:
+  - "src/styles/**/*"
+  - "src/assets/**/*"
+  - "src/components/**/*.tsx"
+  - "src/pages/**/*.tsx"
+  - "src/features/**/*.tsx"
+alwaysApply: false
+---
+
+# Styling, Accessibility & Assets
+
+## Styling system (verified)
+
+Primary: **MUI 5** + `sx` prop + `createAppTheme` (`src/styles/theme.ts`).
+
+Also present: Emotion (MUI default), styled-components (dependency)—follow existing file's approach; do not introduce a third styling system.
+
+Global CSS: `src/styles/globals.css` imported in `main.tsx`.
+
+## Theming rules
+
+- Read palette mode from theme: `theme.palette.mode`, `useTheme()`.
+- Reuse patterns from existing pages for dark/light gradients and borders.
+- Avoid magic hex colors when `theme.palette.primary`, `text.secondary`, `divider` suffice.
+- Spacing: MUI spacing units (`sx={{ mb: 2, p: 4 }}`)—match neighboring components.
+
+## Responsive layout
+
+- Use MUI `Grid`, `Stack`, responsive `sx` breakpoints (`xs`, `sm`, `md`) as in `ProfilePage`, `SettingsView`.
+- Test sidebar + content layout in `AppLayout` for new pages.
+
+## Assets
+
+```
+src/assets/images/
+src/assets/fonts/
+src/assets/icons/    # IconMenus barrel (index.tsx)
+```
+
+- Import icons from `@/assets/icons` or `@mui/icons-material` (both used).
+- Do not add another icon library without approval.
+- Avoid large inline base64 in components (settings QR uses API-provided base64—exception for dynamic QR).
+
+## Accessibility (definition of done)
+
+- Semantic HTML where MUI allows (`Typography` variants, table structure for data).
+- `<TextField label="...">` for inputs.
+- Icon buttons: `aria-label` (see `ChatPage` back button pattern).
+- Status: use `Chip` color + text, not color alone.
+- Dialogs: MUI `Dialog` with title; focus trap built-in.
+- Keyboard: ensure interactive elements are focusable; no `div onClick` for primary actions.
+
+## DataGrid
+
+- Provide meaningful column headers.
+- Server pagination: `paginationMode="server"`, `rowCount`, stable `getRowId`.
+
+## Charts (ApexCharts)
+
+- Wrap in container with min height; handle loading/error so chart module failure does not blank entire page.

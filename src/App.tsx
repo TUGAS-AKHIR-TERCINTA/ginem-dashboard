@@ -1,10 +1,11 @@
-import AppRouters from "./routers";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
 import { useMemo, useState } from "react";
-import { ColorModeContext } from "./context/colorMode.context";
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import { ColorModeContext } from "@/context/colorMode.context";
+import AppRoutes from "@/routes/AppRoutes";
+import { createAppTheme } from "@/styles/theme";
 
-function App() {
+export default function App() {
   const [mode, setMode] = useState<"light" | "dark">(() => {
     return (localStorage.getItem("themeMode") as "light" | "dark") || "light";
   });
@@ -22,28 +23,14 @@ function App() {
     [],
   );
 
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode,
-          background: {
-            default: mode === "dark" ? "#070A12" : "#FFFFFF",
-            paper: mode === "dark" ? "#0E1320" : "#FFFFFF",
-          },
-        },
-      }),
-    [mode],
-  );
+  const theme = useMemo(() => createAppTheme(mode), [mode]);
 
   return (
     <ColorModeContext.Provider value={colorMode}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <AppRouters />
+        <AppRoutes />
       </ThemeProvider>
     </ColorModeContext.Provider>
   );
 }
-
-export default App;

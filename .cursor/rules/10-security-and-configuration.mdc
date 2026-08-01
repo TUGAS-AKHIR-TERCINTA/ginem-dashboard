@@ -1,0 +1,67 @@
+---
+description: Environment config, secrets, auth token handling, and frontend security
+globs:
+  - "src/config/**/*.ts"
+  - "src/services/api.ts"
+  - "src/hooks/use-token.ts"
+  - ".env*"
+alwaysApply: false
+---
+
+# Security & Configuration
+
+## Environment variables
+
+Single access point: `src/config/env.ts` → `CONFIGS`
+
+```ts
+CONFIGS.baseUrl              // VITE_BASE_URL
+CONFIGS.localStorageKey      // VITE_LOCAL_STORAGE_KEY
+CONFIGS.uploadFileUrl        // VITE_UPLOAD_FILE_URL
+CONFIGS.uploadFileApiKey     // VITE_UPLOAD_FILE_API_KEY (public Vite prefix = visible in browser)
+CONFIGS.tokenSecret          // VITE_TOKEN_SECRET
+```
+
+Rules:
+
+- Do **not** scatter `import.meta.env` across the codebase—extend `env.ts`.
+- Never commit `.env` with real secrets.
+- All `VITE_*` vars are **public** to end users—never put private server secrets behind `VITE_`.
+- Do not log env values, tokens, or passwords.
+
+## Auth token storage
+
+- Token: `useToken().setToken()` → `localStorage` key from `CONFIGS.localStorageKey`
+- Authorization header: `Bearer ${token}` via `getAuthHeaders()` / request interceptor
+- Logout on 401: interceptor clears storage and redirects
+
+Do not store tokens in sessionStorage or cookies without an explicit architectural change and security review.
+
+## HTTP security
+
+- Do not disable HTTPS or CORS checks in client code.
+- Do not send credentials to untrusted URLs.
+- Treat API responses, route params, and search params as untrusted—validate/narrow before use.
+
+## XSS
+
+- Avoid `dangerouslySetInnerHTML`.
+- If unavoidable, sanitize first—no raw HTML from API in JSX today.
+
+## Authorization
+
+- Frontend route split is **not** a security boundary—backend must enforce permissions.
+- Do not expose admin actions without backend validation.
+
+## Destructive actions
+
+- Confirm deletes via modal (existing `DeleteModalDevice`, admin delete dialog)—follow same pattern.
+
+## Dependencies
+
+- `jwt-decode` is available—use only when needed; do not log decoded payload.
+- Firebase package exists but unused—do not wire auth through Firebase without explicit request.
+
+## Upload API key
+
+`CONFIGS.uploadFileApiKey` is client-exposed—assume it can be extracted; rely on backend rate limits and scoping.

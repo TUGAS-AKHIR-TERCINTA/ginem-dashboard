@@ -1,0 +1,89 @@
+---
+description: Mandatory AI workflow—analyze, design, implement, verify, report
+alwaysApply: true
+---
+
+# AI Development Workflow
+
+Follow these phases for **every** create, fix, or refactor task.
+
+## Phase 1 — Understand (before writing code)
+
+1. Read relevant files **completely** (page, service, hook, route, tests).
+2. Grep usages of symbols you will change.
+3. Check `package.json` scripts—do not invent commands.
+4. Check existing patterns in the same domain (e.g. other `*Service.ts`).
+5. Note auth, query keys, and backward-compat impact.
+6. Write a brief mental plan: which layers touch this change?
+
+**Do not** generate many new files without reading the current flow.
+
+## Phase 2 — Design
+
+Decide:
+
+- Page vs feature vs service vs hook ownership
+- New files vs extending existing modules
+- Error/loading/empty states
+- Query keys + invalidation scope
+- Tests to add/update
+- Smallest diff that satisfies the requirement
+
+Prefer extending `deviceService` pattern over inventing a parallel API layer.
+
+## Phase 3 — Implement
+
+- Match repo conventions (default page exports, camelCase `ROUTES`, path-based query keys).
+- Pages → `@/hooks/services`; hooks → services; services → `apiClient`.
+- No unrelated refactors; no new dependencies without approval.
+- No `any`; no silent error swallowing.
+- Preserve legacy redirects and API response unwrapping behavior.
+
+## Phase 4 — Verify (required after app code changes)
+
+Run scripts that **exist** in `package.json`:
+
+```bash
+npm run lint          # must pass (zero warnings)
+npm run test:run      # unit tests
+npm run build         # tsc + vite build
+```
+
+Only claim success if commands actually ran successfully.
+
+If a failure is pre-existing and unrelated, say so explicitly—do not hide it.
+
+## Phase 5 — Report
+
+Summarize:
+
+1. Files created / modified and why
+2. Data flow (page → hook → service → api)
+3. Error handling approach
+4. Commands run + results
+5. Assumptions and risks
+6. Manual steps for the user (env vars, backend changes)
+
+## Change safety checklist
+
+Before finishing:
+
+- [ ] No hardcoded routes or API paths in pages
+- [ ] Query keys use `query-keys.ts` factory
+- [ ] Loading / error / empty handled
+- [ ] Mutations invalidate correct cache
+- [ ] No secrets committed
+- [ ] Tests added for new service/hook logic
+- [ ] Lint + test + build green (or failures explained)
+
+## Definition of done
+
+A task is done when architecture layers are correct, types are explicit, async states are handled, verification commands passed, and remaining risks are stated honestly.
+
+## Prohibited workflow shortcuts
+
+- Skipping tests for new services/hooks
+- Removing failing tests instead of fixing code
+- Disabling ESLint/TS checks to greenwash CI
+- Large renames without updating all consumers
+- Stating "build passed" without running build

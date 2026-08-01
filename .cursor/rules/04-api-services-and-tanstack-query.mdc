@@ -1,0 +1,107 @@
+---
+description: API services, Axios client, TanStack Query hooks, and cache keys
+globs:
+  - "src/services/**/*.ts"
+  - "src/hooks/api/**/*.ts"
+  - "src/hooks/services/**/*.ts"
+alwaysApply: false
+---
+
+# API Services & TanStack Query
+
+## Single HTTP client
+
+All HTTP goes through `src/services/api.ts`:
+
+- `api` — Axios instance (base URL, auth header, 401 redirect)
+- `apiClient` — typed helpers: `get`, `post`, `patch`, `remove`, `getTableData`
+
+**Never** create another Axios instance in pages, hooks, or features.
+
+## Domain services (`src/services/<domain>Service.ts`)
+
+One service per domain/page area:
+
+| Service | Domain |
+|---------|--------|
+| `authService` | login, register |
+| `deviceService` | devices CRUD + detail |
+| `adminService` | admins CRUD |
+| `profileService` | my profile |
+| `dashboardService` | stats + logs |
+| `loggerService`, `schedulerService` | log tables |
+| `embeddingService` | indexing |
+| `settingsService` | WhatsApp |
+| `chatService` | chat + `parseChatReply` |
+
+### Service template
+
+```ts
+export const DEVICE_API = {
+  list: "/devices",
+  detail: (id: string | number) => `/devices/detail/${id}`,
+} as const;
+
+export const deviceService = {
+  getList: (params: DeviceListParams) =>
+    apiClient.getTableData<IDevice>({ path: DEVICE_API.list, ...params, filter: { search: params.search } }),
+  create: (payload: DeviceCreatePayload) => apiClient.post(DEVICE_API.list, payload),
+  // ...
+};
+```
+
+Services must NOT: use React hooks, render JSX, show alerts, navigate, or invalidate TanStack cache.
+
+## Query keys (`src/services/query-keys.ts`)
+
+Use the **existing path-based factory**—do not invent inline keys:
+
+```ts
+queryKeys.get("/stats")
+queryKeys.table("/devices", { page, size, filterKey })
+queryKeys.tableRoot("/devices") // invalidation prefix
+```
+
+When adding a domain, reuse the service's `*_API.list` or path constant in hooks—keep path strings in **one place** (the service file).
+
+`filterKey` is JSON-stringified filters in `useTableDataQuery`—keep filter objects stable.
+
+## Hook layers
+
+| Location | Purpose |
+|----------|---------|
+| `hooks/api/useApiGet.ts` | Generic GET query |
+| `hooks/api/useTableDataQuery.ts` | Paginated table query |
+| `hooks/api/useApiMutations.ts` | Generic + `useServicePost/Patch/DeleteMutation` |
+| `hooks/services/useDevices.ts` | Domain-specific queries/mutations |
+
+Pages import from `@/hooks/services`, not generic hooks with raw paths.
+
+### Domain mutation pattern
+
+```ts
+export function useCreateDeviceMutation() {
+  return useServicePostMutation(deviceService.create, {
+    invalidateTablePaths: [DEVICE_API.list],
+  });
+}
+```
+
+Mutations accept **typed payloads** directly—not `{ path, body }`.
+
+## QueryClient defaults (`src/services/query-client.ts`)
+
+- `staleTime: 30_000`, `retry: 1`, `refetchOnWindowFocus: false`
+- Override `refetchInterval` in hook options when polling (devices: 5s)—stop polling when not needed.
+
+## API response shapes (verified)
+
+- `apiClient.get` unwraps `{ data: T }` from response body.
+- `apiClient.getTableData` expects paginated `{ data: PaginatedResponse<T> }`.
+- `apiClient.post/patch/remove` return `response.data` directly.
+- Do not assume field names—inspect existing service types and backend contracts before adding types.
+
+## Invalidation rules
+
+- Invalidate **minimal** scope: `tableRoot(path)` for list mutations, `queryKeys.get(path)` for GET mutations.
+- Do not blanket-invalidate `queryKeys.all` unless intentional full refresh.

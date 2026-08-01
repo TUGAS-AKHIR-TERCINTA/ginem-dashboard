@@ -1,6 +1,7 @@
 import Box from "@mui/material/Box";
 import { useEffect, useState } from "react";
-import { useHttp } from "../../hooks/http";
+import { useSchedulerListQuery } from "@/hooks/services";
+import type { SchedulerLogItem } from "@/services/schedulerService";
 import {
   Alert,
   Button,
@@ -21,10 +22,12 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import BreadCrumberStyle from "../../components/breadcrumb/Index";
-import { IconMenus } from "../../components/icon";
-import { convertTime } from "../../utilities/convertTime";
+import BreadCrumberStyle from "@/components/common/Breadcrumb";
+import { IconMenus } from "@/assets/icons";
+import { convertTime } from "@/utils/convertTime";
+import { ROUTES } from "@/routes/routes";
 import { useSearchParams } from "react-router-dom";
+import { muiTableContainerSx } from "@/styles/tableStyles";
 import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CloseIcon from "@mui/icons-material/Close";
@@ -55,55 +58,39 @@ function NoRowsOverlay({
 }
 
 export default function ListSchedulerView() {
-  const [tableData, setTableData] = useState<any[]>([]);
-  const { handleGetTableDataRequest } = useHttp();
   const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get("search") || "";
 
-  const [loading, setLoading] = useState(false);
-  const [rowCount, setRowCount] = useState(0);
+  // UI pagination is 0-based; API expects page >= 1
   const [paginationModel, setPaginationModel] = useState({
     pageSize: 25,
-    page: 1,
+    page: 0,
   });
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const getTableData = async ({ search }: { search: string }) => {
-    try {
-      setLoading(true);
-      setErrorMessage(null);
-      const result = await handleGetTableDataRequest({
-        path: "/scheduler-logs",
-        page: paginationModel.page,
-        size: paginationModel.pageSize,
-        filter: { search },
-      });
+  const { data, isFetching, isError, refetch, dataUpdatedAt } =
+    useSchedulerListQuery({
+      page: paginationModel.page + 1,
+      size: paginationModel.pageSize,
+      search,
+    });
 
-      if (result && result?.items) {
-        setTableData(result?.items);
-        setRowCount(result.totalItems ?? 0);
-        setLastUpdated(new Date());
-      }
-    } catch (error: unknown) {
-      console.error(error);
-      setErrorMessage("Failed to load scheduler logs. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const search = searchParams.get("search") || "";
-    getTableData({ search });
-  }, [paginationModel, searchParams]);
+  const tableData = data?.items ?? [];
+  const rowCount = data?.totalItems ?? 0;
+  const loading = isFetching;
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+  const errorMessage = isError
+    ? "Failed to load scheduler logs. Please try again."
+    : null;
 
   function CustomToolbar() {
     const initialSearch = searchParams.get("search") || "";
     const [search, setSearch] = useState<string>(initialSearch);
 
+    const currentSearch = searchParams.get("search") || "";
+
     useEffect(() => {
-      setSearch(searchParams.get("search") || "");
-    }, [searchParams]);
+      setSearch(currentSearch);
+    }, [currentSearch]);
 
     const handleSearch = () => {
       const newSearchParams = new URLSearchParams();
@@ -131,7 +118,7 @@ export default function ListSchedulerView() {
             <span>
               <IconButton
                 size="small"
-                onClick={() => getTableData({ search })}
+                onClick={() => refetch()}
                 disabled={loading}
                 sx={{
                   border: 1,
@@ -209,7 +196,7 @@ export default function ListSchedulerView() {
         navigation={[
           {
             label: "Scheduler",
-            link: "/scheduller",
+            link: ROUTES.scheduler,
             icon: <IconMenus.schedule fontSize="small" />,
           },
         ]}
@@ -250,23 +237,30 @@ export default function ListSchedulerView() {
               subtitle="Try adjusting your search or wait for new scheduled jobs."
             />
           ) : (
-            <TableContainer sx={{ mt: 2 }}>
+            <TableContainer
+              sx={(theme) => ({
+                ...((typeof muiTableContainerSx === "function"
+                  ? muiTableContainerSx(theme)
+                  : muiTableContainerSx) as object),
+                mt: 2,
+              })}
+            >
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>Job ID</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Device</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>State</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Delay</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Scheduled at</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Run at</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Executed at</TableCell>
+                    <TableCell>Job ID</TableCell>
+                    <TableCell>Type</TableCell>
+                    <TableCell>Device</TableCell>
+                    <TableCell>State</TableCell>
+                    <TableCell>Delay</TableCell>
+                    <TableCell>Scheduled at</TableCell>
+                    <TableCell>Run at</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Executed at</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {tableData.map((row: any) => {
+                  {tableData.map((row: SchedulerLogItem) => {
                     const status = String(row?.status ?? "pending");
                     return (
                       <TableRow
@@ -314,12 +308,14 @@ export default function ListSchedulerView() {
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" color="text.secondary">
-                            {convertTime(row?.scheduledAt) || "-"}
+                            {row.scheduledAt
+                              ? convertTime(row.scheduledAt)
+                              : "-"}
                           </Typography>
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" color="text.secondary">
-                            {convertTime(row?.runAt) || "-"}
+                            {row.runAt ? convertTime(row.runAt) : "-"}
                           </Typography>
                         </TableCell>
                         <TableCell>

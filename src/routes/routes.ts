@@ -1,0 +1,15 @@
+export const ROUTES = {
+  home: "/",
+  login: "/login",
+  register: "/register",
+  devices: "/devices",
+  deviceDetail: (id: string | number) => `/devices/${id}`,
+  scheduler: "/scheduler",
+  logger: "/logger",
+  indexing: "/indexing",
+  admins: "/admin",
+  profile: "/my-profile",
+  profileEdit: (userId: string | number) => `/my-profile/edit/${userId}`,
+  settings: "/settings",
+  chat: "/chat",
+} as const;

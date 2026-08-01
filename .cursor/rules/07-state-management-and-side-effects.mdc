@@ -1,0 +1,70 @@
+---
+description: Context, local state, effects, and server-state ownership
+globs:
+  - "src/context/**/*.{ts,tsx}"
+  - "src/providers/**/*.{ts,tsx}"
+  - "src/hooks/**/*.{ts,tsx}"
+  - "src/pages/**/*.tsx"
+alwaysApply: false
+---
+
+# State Management & Side Effects
+
+## State ownership
+
+| State type | Owner |
+|------------|-------|
+| Server / API data | TanStack Query via `hooks/services` |
+| Auth token | `localStorage` via `useToken()` |
+| Global alerts + loading flag | `AppContext` (`useAppContext`) |
+| Theme mode | `App.tsx` local state + `ColorModeContext` |
+| Page filters / pagination | Local `useState` or URL search params |
+| Modal open / form draft | Local component state |
+
+**Do not** copy TanStack Query data into Context or duplicate server state in local state without a documented reason (e.g. optimistic draft).
+
+## Context usage (established)
+
+- `AppProvider` — alerts (`setAppAlert`) and global loading (`setIsLoading`)
+- `ColorModeContext` — dark/light toggle
+- Access via `useAppContext()` hook exported from `app.context.tsx`
+
+When touching context: reduce `any` types—do not add new `any` to context values.
+
+## useEffect guidelines
+
+Use effects for synchronization with **external systems** only:
+
+- Sync URL search params ↔ local filter input (existing toolbar patterns)
+- Scroll chat to bottom on new messages
+- Theme persistence (already in `App.tsx` event handler—preferred over effect)
+
+**Do NOT** use effects for:
+
+- Fetching data already owned by TanStack Query
+- Deriving state from props/query data (compute inline or `useMemo` sparingly)
+- Event handlers (handle in `onClick` / `onSubmit`)
+
+Every effect needs:
+
+- Correct dependency array
+- Cleanup for timers, subscriptions, listeners
+- Guard against updates after unmount when doing manual async work outside Query
+
+Do not disable `react-hooks/exhaustive-deps` without a documented reason.
+
+## URL state
+
+Device/embedding/scheduler lists use `useSearchParams` for search filters—prefer this for shareable filter state over hidden local-only filters.
+
+## Polling
+
+`refetchInterval: 5000` on device list—stop or disable when page unmounts (Query handles this automatically). Do not add polling without explicit product need.
+
+## Provider order (`app-providers.tsx`)
+
+```
+QueryProvider → AppProvider → (App with ThemeProvider inside)
+```
+
+Do not reorder providers without verifying Query + Context availability in hooks.

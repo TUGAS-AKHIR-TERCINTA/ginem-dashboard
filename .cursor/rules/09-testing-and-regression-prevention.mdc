@@ -1,0 +1,65 @@
+---
+description: Vitest patterns, coverage targets, and regression prevention
+globs:
+  - "src/**/*.test.{ts,tsx}"
+  - "src/**/*.spec.{ts,tsx}"
+  - "src/test/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Testing & Regression Prevention
+
+## Stack
+
+- **Vitest** (`vite.config.ts` test block, jsdom)
+- **Testing Library** + `@testing-library/jest-dom`
+- Setup: `src/test/setup.ts` (cleanup, clear mocks, localStorage)
+- Helpers: `src/test/test-utils.tsx` (`createTestQueryClient`, `createAppQueryWrapper`, `renderHook`)
+
+## What to test (priority)
+
+1. **Services** — mock `apiClient`, assert correct path/payload (`*Service.test.ts`)
+2. **Pure utils / Zod validators** — edge cases (`adminSchema.test.ts` pattern)
+3. **Domain hooks** — mock `apiClient`, assert query keys and invalidation (`hooks/services/*.test.tsx`)
+4. **Generic hooks** — `hooks/api/*.test.tsx`
+5. **Critical UI behavior** — loading/error/empty, form validation (add when fixing bugs)
+
+## Conventions
+
+- Colocate tests: `deviceService.test.ts` next to `deviceService.ts`
+- Mock API at `@/services/api` module level (see existing tests)
+- Use `waitFor` for async query/mutation assertions
+- TanStack Query v5: mutation `mutationFn` receives `(variables, context)`—assert `mock.calls[0][0]` for variables when mocking service fns directly
+
+## Coverage config (vite)
+
+Includes: `src/services/**`, `src/hooks/api/**`, `src/hooks/services/**`, `src/utils/**`
+
+Add tests when creating new services or domain hooks in these paths.
+
+## Test quality
+
+- Assert **behavior** (called with correct args, UI shows error)—not implementation details.
+- Avoid huge snapshots.
+- Avoid arbitrary `setTimeout` in tests.
+- When fixing a bug, add a regression test that fails before the fix.
+
+## CI requirement
+
+`npm run test:run` must pass before merge (with `npm run lint`).
+
+## Running locally
+
+```bash
+npm run test:run      # CI equivalent
+npm run test:coverage # coverage report
+npm test              # watch mode
+```
+
+Do not claim tests pass without running them.
+
+## Component test queries
+
+Prefer accessible queries: `getByRole`, `getByLabelText`, `getByText`.
+
+Mock `AppProvider` via `createAppQueryWrapper()` when hooks use `useAppContext`.

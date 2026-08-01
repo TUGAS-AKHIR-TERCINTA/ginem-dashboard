@@ -1,0 +1,71 @@
+---
+description: React Router setup, ROUTES constants, lazy loading, and auth gating
+globs:
+  - "src/routes/**/*.{ts,tsx}"
+  - "src/pages/**/*.tsx"
+  - "src/components/layout/**/*.tsx"
+alwaysApply: false
+---
+
+# Routing & Access Control
+
+## Central route constants
+
+All paths live in `src/routes/routes.ts`:
+
+```ts
+export const ROUTES = {
+  home: "/",
+  login: "/login",
+  devices: "/devices",
+  deviceDetail: (id: string | number) => `/devices/${id}`,
+  // ...
+} as const;
+```
+
+- Use **camelCase** keys (repo convention).
+- Dynamic routes: provide builder functions (`deviceDetail(id)`).
+- Never hardcode `"/devices"` in components—use `ROUTES.devices` or `navigate(ROUTES.devices)`.
+
+## Route registration
+
+All routes registered in `src/routes/AppRoutes.tsx`:
+
+- Lazy-load page components: `lazy(() => import("@/pages/..."))`
+- Wrap with `withSuspense()` + `PageLoader` fallback
+- `errorElement: <ErrorPage />` on root route
+
+## Adding a route (checklist)
+
+1. Create page in `src/pages/<domain>/`
+2. Add constant to `ROUTES`
+3. Register lazy child in `AppRoutes` under correct layout
+4. Update navigation in `AppLayout` if the page appears in sidebar
+5. Add domain service + hooks if API needed
+
+## Auth model (current)
+
+- Token stored via `useToken()` → `localStorage` key from `CONFIGS.localStorageKey`
+- `AppRoutes` reads `getToken()` once at render → chooses `AppLayout` vs `AuthLayout` child routes
+- Axios 401 interceptor clears token and sets `window.location.pathname = "/"`
+
+Rules:
+
+- Do not introduce a second token source (Context duplicate of auth state).
+- Login: `useLoginMutation` → `setToken(result.data.accessToken)` → navigate + reload (existing pattern in `LoginPage`).
+- **No fine-grained role guards** in UI today—backend is authoritative; do not fake security with frontend-only checks.
+- Chat route (`ROUTES.chat`) is **outside** the main authenticated layout—preserve this unless intentionally changing chat auth.
+
+## Legacy compatibility
+
+- Redirect `/scheduller` → `ROUTES.scheduler` must remain until backend/links are updated.
+
+## Route params
+
+- Read with `useParams`; validate before API calls (`enabled: Boolean(deviceId)` in queries).
+- Do not assume params are numeric—coerce safely when needed.
+
+## Navigation after mutations
+
+- Prefer invalidating queries over manual refetch unless UX requires immediate `refetch()`.
+- Use `navigate(ROUTES.devices)` not string literals.

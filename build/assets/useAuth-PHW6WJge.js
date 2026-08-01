@@ -1,0 +1,1 @@
+import{n,o,p as e}from"./index-IjFht75p.js";const i={login:t=>n.post("/auth/login",t),register:t=>n.post("/auth/register/users",t)};function u(){const t=o();return e({mutationFn:r=>i.login(r),onError:t})}function a(){const t=o();return e({mutationFn:r=>i.register(r),onError:t})}export{a,u};

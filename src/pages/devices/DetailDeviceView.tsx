@@ -1,6 +1,5 @@
 import Box from "@mui/material/Box";
-import { useEffect, useState } from "react";
-import { useHttp } from "../../hooks/http";
+import { useDeviceDetailQuery } from "@/hooks/services";
 import {
   Alert,
   Button,
@@ -16,43 +15,26 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import BreadCrumberStyle from "../../components/breadcrumb/Index";
-import { IconMenus } from "../../components/icon";
-import { convertTime } from "../../utilities/convertTime";
+import BreadCrumberStyle from "@/components/common/Breadcrumb";
+import { IconMenus } from "@/assets/icons";
+import { convertTime } from "@/utils/convertTime";
 import { useNavigate, useParams } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { IDevice, IDeviceValue } from "../../interfaces/Device";
+import { IDeviceValue } from "@/types/Device";
+import { muiTableContainerSx } from "@/styles/tableStyles";
+import { ROUTES } from "@/routes/routes";
 
 export default function DetailDeviceView() {
   const { deviceId } = useParams<{ deviceId: string }>();
   const navigate = useNavigate();
-  const { handleGetRequest } = useHttp();
 
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [device, setDevice] = useState<IDevice | null>(null);
+  const {
+    data: device,
+    isLoading: loading,
+    isError,
+  } = useDeviceDetailQuery(deviceId);
 
-  useEffect(() => {
-    if (!deviceId) return;
-    const fetchDetail = async () => {
-      try {
-        setLoading(true);
-        setErrorMessage(null);
-        const result = await handleGetRequest({
-          path: `/devices/detail/${deviceId}`,
-        });
-        if (result) setDevice(result);
-      } catch (error: unknown) {
-        console.error(error);
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to load device.",
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDetail();
-  }, [deviceId]);
+  const errorMessage = isError ? "Failed to load device." : null;
 
   const getStatusColor = (
     status: string,
@@ -74,7 +56,7 @@ export default function DetailDeviceView() {
         navigation={[
           {
             label: "Devices",
-            link: "/devices",
+            link: ROUTES.devices,
             icon: <IconMenus.device fontSize="small" />,
           },
           {
@@ -89,7 +71,7 @@ export default function DetailDeviceView() {
           <Button
             size="small"
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate("/devices")}
+            onClick={() => navigate(ROUTES.devices)}
           >
             Back
           </Button>
@@ -167,7 +149,7 @@ export default function DetailDeviceView() {
                     Updated at
                   </Typography>
                   <Typography variant="body2">
-                    {convertTime(device?.updatedAt!) || "—"}
+                    {device?.updatedAt ? convertTime(device.updatedAt) : "—"}
                   </Typography>
                 </Box>
               </Stack>
@@ -203,18 +185,18 @@ export default function DetailDeviceView() {
                 No device values.
               </Typography>
             ) : (
-              <TableContainer>
+              <TableContainer sx={muiTableContainerSx}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Value</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Created at</TableCell>
+                      <TableCell>ID</TableCell>
+                      <TableCell>Value</TableCell>
+                      <TableCell>Created at</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {deviceValues.map((item: IDeviceValue) => (
-                      <TableRow key={item.deviceValueId}>
+                      <TableRow key={item.deviceValueId} hover>
                         <TableCell>{item.deviceValueId}</TableCell>
                         <TableCell>{item.deviceValueValue ?? "—"}</TableCell>
                         <TableCell>
