@@ -245,7 +245,7 @@ export default function ListSchedulerView() {
                 mt: 2,
               })}
             >
-              <Table size="small" stickyHeader>
+              <Table size="small" stickyHeader sx={{ minWidth: 1080 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Job ID</TableCell>

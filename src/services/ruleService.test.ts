@@ -92,4 +92,10 @@ describe("ruleService", () => {
       filter: { ruleId: undefined },
     });
   });
+
+  it("delete removes a rule by id", async () => {
+    await ruleService.delete(7);
+
+    expect(apiClient.remove).toHaveBeenCalledWith("/rules/7");
+  });
 });

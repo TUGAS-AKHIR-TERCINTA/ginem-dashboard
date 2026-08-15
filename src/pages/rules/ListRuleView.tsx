@@ -1,6 +1,6 @@
 import Box from "@mui/material/Box";
 import { useCallback, useEffect, useState } from "react";
-import { useRuleListQuery } from "@/hooks/services";
+import { useRuleListQuery, useDeleteRuleMutation } from "@/hooks/services";
 import {
   Alert,
   Button,
@@ -33,6 +33,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import CloseIcon from "@mui/icons-material/Close";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import { ROUTES } from "@/routes/routes";
 import {
   formatRuleCooldown,
@@ -48,6 +49,7 @@ import {
   RuleTriggerChip,
 } from "@/features/rules/components/RuleChips";
 import { muiTableContainerSx } from "@/styles/tableStyles";
+import DeleteModalRule from "@/features/rules/components/DeleteModalRule";
 
 type ActiveFilter = "all" | "true" | "false";
 
@@ -221,6 +223,13 @@ export default function ListRuleView() {
       search,
       isActive,
     });
+  const deleteRule = useDeleteRuleMutation();
+
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [ruleToDelete, setRuleToDelete] = useState<{
+    ruleId: number;
+    ruleName: string;
+  } | null>(null);
 
   const tableData = data?.items ?? [];
   const rowCount = data?.totalItems ?? 0;
@@ -245,6 +254,31 @@ export default function ListRuleView() {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
     setSearchParams(new URLSearchParams());
   }, [setSearchParams]);
+
+  const handleOpenDeleteModal = (row: IRule) => {
+    setRuleToDelete({
+      ruleId: row.ruleId,
+      ruleName: getRuleDisplayName(row),
+    });
+    setOpenDeleteModal(true);
+  };
+
+  const handleCloseDeleteModal = () => {
+    if (!deleteRule.isPending) {
+      setOpenDeleteModal(false);
+      setRuleToDelete(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!ruleToDelete || deleteRule.isPending) return;
+    try {
+      await deleteRule.mutateAsync(ruleToDelete.ruleId);
+      handleCloseDeleteModal();
+    } catch (error: unknown) {
+      console.error(error);
+    }
+  };
 
   return (
     <Box sx={{ pb: 2 }}>
@@ -311,7 +345,7 @@ export default function ListRuleView() {
               mt: 2,
             })}
           >
-            <Table size="small" stickyHeader>
+            <Table size="small" stickyHeader sx={{ minWidth: 1280 }}>
               <TableHead>
                 <TableRow>
                   <TableCell>ID</TableCell>
@@ -322,7 +356,7 @@ export default function ListRuleView() {
                   <TableCell>Actions</TableCell>
                   <TableCell>Cooldown</TableCell>
                   <TableCell>Last triggered</TableCell>
-                  <TableCell align="right">Detail</TableCell>
+                  <TableCell align="right">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -379,7 +413,7 @@ export default function ListRuleView() {
                       <TableCell sx={{ whiteSpace: "nowrap" }}>
                         {row.lastTriggeredAt || "—"}
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                         <Tooltip title="Detail">
                           <IconButton
                             size="small"
@@ -389,6 +423,16 @@ export default function ListRuleView() {
                             }
                           >
                             <VisibilityOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            aria-label={`Delete rule ${row.ruleId}`}
+                            onClick={() => handleOpenDeleteModal(row)}
+                          >
+                            <DeleteOutlinedIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </TableCell>
@@ -426,6 +470,14 @@ export default function ListRuleView() {
           </Stack>
         ) : null}
       </Paper>
+
+      <DeleteModalRule
+        open={openDeleteModal}
+        loading={deleteRule.isPending}
+        ruleName={ruleToDelete?.ruleName ?? null}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+      />
     </Box>
   );
 }

@@ -1,5 +1,6 @@
 import { useApiGet, useTableDataQuery } from "@/hooks/api";
-import { RULE_API } from "@/services/ruleService";
+import { useServiceDeleteMutation } from "@/hooks/api/useApiMutations";
+import { RULE_API, ruleService } from "@/services/ruleService";
 import type { IRule, IRuleExecutionLog } from "@/types/Rule";
 
 export function useRuleListQuery(params: {
@@ -40,5 +41,12 @@ export function useRuleExecutionLogsQuery(params: {
           : String(params.ruleId),
     },
     enabled: params.enabled ?? true,
+  });
+}
+
+export function useDeleteRuleMutation() {
+  return useServiceDeleteMutation(ruleService.delete, {
+    invalidateTablePaths: [RULE_API.list, RULE_API.executionLogs],
+    successMessage: "Rule deleted.",
   });
 }

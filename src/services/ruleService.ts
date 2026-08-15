@@ -5,6 +5,7 @@ import type { PaginatedResponse } from "./types";
 export const RULE_API = {
   list: "/rules",
   detail: (ruleId: string | number) => `/rules/detail/${ruleId}`,
+  remove: (ruleId: string | number) => `/rules/${ruleId}`,
   executionLogs: "/rules/execution-logs",
 } as const;
 
@@ -25,9 +26,7 @@ function isActiveFilterValue(isActive?: boolean): string | undefined {
   return isActive == null ? undefined : String(isActive);
 }
 
-function ruleIdFilterValue(
-  ruleId?: string | number,
-): string | undefined {
+function ruleIdFilterValue(ruleId?: string | number): string | undefined {
   if (ruleId == null || ruleId === "") return undefined;
   return String(ruleId);
 }
@@ -58,4 +57,6 @@ export const ruleService = {
         ruleId: ruleIdFilterValue(params.ruleId),
       },
     }),
+
+  delete: (ruleId: number) => apiClient.remove(RULE_API.remove(ruleId)),
 };

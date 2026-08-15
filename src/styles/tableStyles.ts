@@ -108,10 +108,14 @@ export const muiTableContainerSx: SxProps<Theme> = (theme) => {
     : alpha(theme.palette.primary.main, 0.1);
 
   return {
+    width: "100%",
+    maxWidth: "100%",
     borderRadius: 1.5,
     border: `1px solid ${hairline}`,
     bgcolor: "background.paper",
-    overflow: "hidden",
+    overflowX: "auto",
+    overflowY: "hidden",
+    WebkitOverflowScrolling: "touch",
     boxShadow: isDark
       ? "0 8px 24px rgba(0,0,0,0.28)"
       : "0 8px 24px rgba(49,46,129,0.05)",

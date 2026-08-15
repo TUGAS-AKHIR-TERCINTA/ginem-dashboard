@@ -18,6 +18,7 @@ export {
   useRuleListQuery,
   useRuleDetailQuery,
   useRuleExecutionLogsQuery,
+  useDeleteRuleMutation,
 } from "./useRules";
 export { useSchedulerListQuery } from "./useScheduler";
 export {

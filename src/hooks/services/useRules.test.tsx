@@ -1,6 +1,11 @@
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createAppQueryWrapper, renderHook } from "@/test/test-utils";
+import {
+  createAppQueryWrapper,
+  createTestQueryClient,
+  renderHook,
+} from "@/test/test-utils";
+import { queryKeys } from "@/services/query-keys";
 
 vi.mock("@/services/api", () => ({
   apiClient: {
@@ -14,6 +19,7 @@ vi.mock("@/services/api", () => ({
 
 import { apiClient } from "@/services/api";
 import {
+  useDeleteRuleMutation,
   useRuleDetailQuery,
   useRuleExecutionLogsQuery,
   useRuleListQuery,
@@ -121,5 +127,28 @@ describe("useRuleExecutionLogsQuery", () => {
     );
 
     expect(apiClient.getTableData).not.toHaveBeenCalled();
+  });
+});
+
+describe("useDeleteRuleMutation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("deletes a rule and invalidates the rules list", async () => {
+    vi.mocked(apiClient.remove).mockResolvedValue({ ok: true });
+    const queryClient = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useDeleteRuleMutation(), {
+      wrapper: createAppQueryWrapper(queryClient),
+    });
+
+    await result.current.mutateAsync(7);
+
+    expect(apiClient.remove).toHaveBeenCalledWith("/rules/7");
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: queryKeys.tableRoot("/rules"),
+    });
   });
 });
