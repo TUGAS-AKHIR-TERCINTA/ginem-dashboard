@@ -20,32 +20,35 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
 import BreadCrumberStyle from "@/components/common/Breadcrumb";
 import { IconMenus } from "@/assets/icons";
-import { convertTime } from "@/utils/convertTime";
 import { useNavigate, useParams } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { muiTableContainerSx } from "@/styles/tableStyles";
 import { ROUTES } from "@/routes/routes";
 import {
-  getExecutionLogMessage,
+  formatExecutionCondition,
+  formatExecutionEvent,
+  formatRuleCooldown,
+  getExecutionLogError,
   getExecutionLogRowId,
   getRuleDisplayName,
   getRuleOriginalPrompt,
+  type IRuleAction,
+  type IRuleCondition,
+  type IRuleExecutionAction,
   type IRuleExecutionLog,
 } from "@/types/Rule";
-
-function getLogStatusColor(
-  status: string,
-): "default" | "success" | "warning" | "error" {
-  const s = String(status ?? "").toLowerCase();
-  if (s === "success" || s === "completed" || s === "ok") return "success";
-  if (s === "pending" || s === "running") return "warning";
-  if (s === "failed" || s === "error") return "error";
-  return "default";
-}
+import {
+  ExecutionActionChips,
+  RuleActionChips,
+  RuleConditionChips,
+  RuleTriggerChip,
+} from "@/features/rules/components/RuleChips";
 
 export default function DetailRuleView() {
+  const theme = useTheme();
   const { ruleId } = useParams<{ ruleId: string }>();
   const navigate = useNavigate();
   const [logPagination, setLogPagination] = useState({
@@ -71,12 +74,13 @@ export default function DetailRuleView() {
   });
 
   const errorMessage = isError ? "Failed to load rule." : null;
-  const logsErrorMessage = logsError
-    ? "Failed to load execution logs."
-    : null;
+  const logsErrorMessage = logsError ? "Failed to load execution logs." : null;
   const logs = logsData?.items ?? [];
   const logsTotal = logsData?.totalItems ?? 0;
   const displayName = rule ? getRuleDisplayName(rule) : "Detail";
+  const conditions: IRuleCondition[] = rule?.conditions ?? [];
+  const actions: IRuleAction[] = rule?.actions ?? [];
+  const logic = rule?.conditionLogic?.trim() || "AND";
 
   return (
     <Box sx={{ pb: 2 }}>
@@ -140,36 +144,72 @@ export default function DetailRuleView() {
             <Divider sx={{ my: 2 }} />
 
             <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
-              Rule info
+              Original prompt
             </Typography>
-            <Stack spacing={1.5} sx={{ mb: 3 }}>
-              <Stack direction="row" flexWrap="wrap" gap={2}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Created at
-                  </Typography>
-                  <Typography variant="body2">
-                    {rule.createdAt ? convertTime(rule.createdAt) : "—"}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Updated at
-                  </Typography>
-                  <Typography variant="body2">
-                    {rule.updatedAt ? convertTime(rule.updatedAt) : "—"}
-                  </Typography>
-                </Box>
-              </Stack>
+            <Typography
+              variant="body2"
+              sx={{
+                mb: 3,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: alpha(theme.palette.primary.main, 0.04),
+                border: "1px solid",
+                borderColor: alpha(theme.palette.primary.main, 0.1),
+              }}
+            >
+              {getRuleOriginalPrompt(rule)}
+            </Typography>
+
+            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
+              Automation flow
+            </Typography>
+            <Stack spacing={2} sx={{ mb: 3 }}>
               <Box>
                 <Typography variant="caption" color="text.secondary">
-                  Original prompt
+                  When
                 </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-                >
-                  {getRuleOriginalPrompt(rule)}
+                <Stack direction="row" sx={{ mt: 0.75 }}>
+                  <RuleTriggerChip trigger={rule.trigger} />
+                </Stack>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  If ({logic})
+                </Typography>
+                <Box sx={{ mt: 0.75 }}>
+                  <RuleConditionChips
+                    conditions={conditions}
+                    logic={rule.conditionLogic}
+                  />
+                </Box>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Then
+                </Typography>
+                <Box sx={{ mt: 0.75 }}>
+                  <RuleActionChips actions={actions} />
+                </Box>
+              </Box>
+            </Stack>
+
+            <Stack direction="row" flexWrap="wrap" gap={3} sx={{ mb: 3 }}>
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Cooldown
+                </Typography>
+                <Typography variant="body2">
+                  {formatRuleCooldown(rule.cooldownSec)}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Last triggered
+                </Typography>
+                <Typography variant="body2">
+                  {rule.lastTriggeredAt || "—"}
                 </Typography>
               </Box>
             </Stack>
@@ -197,36 +237,85 @@ export default function DetailRuleView() {
                     <TableHead>
                       <TableRow>
                         <TableCell>ID</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Message</TableCell>
+                        <TableCell>Result</TableCell>
+                        <TableCell>Event</TableCell>
+                        <TableCell>Condition</TableCell>
+                        <TableCell>Actions</TableCell>
+                        <TableCell>Latency</TableCell>
                         <TableCell>Executed at</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {logs.map((item: IRuleExecutionLog, index: number) => {
-                        const status = String(item.status ?? "—");
-                        const executedAt = item.executedAt ?? item.createdAt;
+                        const errorText = getExecutionLogError(item);
+                        const executionActions: IRuleExecutionAction[] =
+                          item.actionResult?.actions ?? [];
+                        const passed = item.conditionResult?.passed;
                         return (
                           <TableRow
                             key={getExecutionLogRowId(item, index)}
                             hover
+                            sx={{ "& td": { verticalAlign: "top" } }}
                           >
                             <TableCell>
                               {getExecutionLogRowId(item, index)}
                             </TableCell>
                             <TableCell>
-                              <Chip
-                                size="small"
-                                label={status}
-                                color={getLogStatusColor(status)}
-                                variant="outlined"
+                              <Stack spacing={0.5}>
+                                <Chip
+                                  size="small"
+                                  label={item.success ? "Success" : "Failed"}
+                                  color={item.success ? "success" : "error"}
+                                  variant="outlined"
+                                />
+                                {errorText ? (
+                                  <Typography
+                                    variant="caption"
+                                    color="error"
+                                    sx={{ maxWidth: 180 }}
+                                  >
+                                    {errorText}
+                                  </Typography>
+                                ) : null}
+                              </Stack>
+                            </TableCell>
+                            <TableCell>{formatExecutionEvent(item)}</TableCell>
+                            <TableCell>
+                              <Stack spacing={0.5}>
+                                <Chip
+                                  size="small"
+                                  label={
+                                    passed === true
+                                      ? "Passed"
+                                      : passed === false
+                                        ? "Failed"
+                                        : "—"
+                                  }
+                                  color={
+                                    passed === true ? "success" : "default"
+                                  }
+                                  variant="outlined"
+                                />
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
+                                  {formatExecutionCondition(item)}
+                                </Typography>
+                              </Stack>
+                            </TableCell>
+                            <TableCell sx={{ minWidth: 180 }}>
+                              <ExecutionActionChips
+                                actions={executionActions}
                               />
                             </TableCell>
                             <TableCell>
-                              {getExecutionLogMessage(item)}
+                              {item.latencyMs != null
+                                ? `${item.latencyMs} ms`
+                                : "—"}
                             </TableCell>
-                            <TableCell>
-                              {executedAt ? convertTime(executedAt) : "—"}
+                            <TableCell sx={{ whiteSpace: "nowrap" }}>
+                              {item.createdAt || "—"}
                             </TableCell>
                           </TableRow>
                         );

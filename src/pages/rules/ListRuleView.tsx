@@ -1,5 +1,5 @@
 import Box from "@mui/material/Box";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRuleListQuery } from "@/hooks/services";
 import {
   Alert,
@@ -11,22 +11,22 @@ import {
   InputAdornment,
   InputLabel,
   MenuItem,
+  Pagination,
   Paper,
   Select,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
-import {
-  GridActionsCellItem,
-  GridColDef,
-  GridPaginationModel,
-} from "@mui/x-data-grid";
 import BreadCrumberStyle from "@/components/common/Breadcrumb";
-import AppDataGrid from "@/components/common/AppDataGrid";
 import { IconMenus } from "@/assets/icons";
-import { convertTime } from "@/utils/convertTime";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -35,23 +35,25 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { ROUTES } from "@/routes/routes";
 import {
+  formatRuleCooldown,
   getRuleDisplayName,
   getRuleOriginalPrompt,
   type IRule,
+  type IRuleAction,
+  type IRuleCondition,
 } from "@/types/Rule";
-
-const PROMPT_PREVIEW_MAX = 120;
+import {
+  RuleActionChips,
+  RuleConditionChips,
+  RuleTriggerChip,
+} from "@/features/rules/components/RuleChips";
+import { muiTableContainerSx } from "@/styles/tableStyles";
 
 type ActiveFilter = "all" | "true" | "false";
 
 function parseActiveFilter(raw: string | null): ActiveFilter {
   if (raw === "true" || raw === "false") return raw;
   return "all";
-}
-
-function truncatePrompt(raw: string): string {
-  if (raw.length <= PROMPT_PREVIEW_MAX) return raw;
-  return `${raw.slice(0, PROMPT_PREVIEW_MAX)}…`;
 }
 
 function NoRowsOverlay({
@@ -207,9 +209,9 @@ export default function ListRuleView() {
   const activeFilter = parseActiveFilter(searchParams.get("isActive"));
   const isActive = activeFilter === "all" ? undefined : activeFilter === "true";
 
-  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
-    page: 0,
+  const [paginationModel, setPaginationModel] = useState({
     pageSize: 20,
+    page: 0,
   });
 
   const { data, isFetching, isError, refetch, dataUpdatedAt } =
@@ -220,14 +222,7 @@ export default function ListRuleView() {
       isActive,
     });
 
-  const rows = useMemo(
-    () =>
-      (data?.items ?? []).map((row: IRule) => ({
-        ...row,
-        id: row.ruleId,
-      })),
-    [data?.items],
-  );
+  const tableData = data?.items ?? [];
   const rowCount = data?.totalItems ?? 0;
   const loading = isFetching;
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
@@ -250,93 +245,6 @@ export default function ListRuleView() {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
     setSearchParams(new URLSearchParams());
   }, [setSearchParams]);
-
-  const handleOpenDetail = useCallback(
-    (row: IRule) => {
-      if (row.ruleId == null) return;
-      navigate(ROUTES.ruleDetail(row.ruleId));
-    },
-    [navigate],
-  );
-
-  const columns: GridColDef[] = useMemo(
-    () => [
-      {
-        field: "ruleId",
-        headerName: "ID",
-        width: 90,
-      },
-      {
-        field: "name",
-        headerName: "Name",
-        flex: 1,
-        minWidth: 160,
-        valueGetter: (params) => getRuleDisplayName(params.row as IRule),
-      },
-      {
-        field: "originalPrompt",
-        headerName: "Original prompt",
-        flex: 2,
-        minWidth: 220,
-        valueGetter: (params) => getRuleOriginalPrompt(params.row as IRule),
-        renderCell: (params) => (
-          <Typography
-            variant="body2"
-            title={String(params.value ?? "")}
-            sx={{
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {truncatePrompt(String(params.value ?? "—"))}
-          </Typography>
-        ),
-      },
-      {
-        field: "isActive",
-        headerName: "Status",
-        width: 120,
-        renderCell: (params) => {
-          const active = Boolean(params.value);
-          return (
-            <Chip
-              size="small"
-              label={active ? "Active" : "Inactive"}
-              color={active ? "success" : "default"}
-              variant="outlined"
-            />
-          );
-        },
-      },
-      {
-        field: "createdAt",
-        headerName: "Created at",
-        flex: 1,
-        minWidth: 160,
-        valueFormatter: (item) =>
-          item.value ? convertTime(String(item.value)) : "—",
-      },
-      {
-        field: "actions",
-        type: "actions",
-        headerName: "Actions",
-        width: 90,
-        align: "center",
-        headerAlign: "center",
-        getActions: ({ row }) => [
-          <GridActionsCellItem
-            key="detail"
-            icon={<VisibilityOutlinedIcon />}
-            label="Detail"
-            onClick={() => handleOpenDetail(row as IRule)}
-            showInMenu={false}
-          />,
-        ],
-      },
-    ],
-    [handleOpenDetail],
-  );
 
   return (
     <Box sx={{ pb: 2 }}>
@@ -362,7 +270,7 @@ export default function ListRuleView() {
               Rules
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Automation rules and original prompts
+              Automation flow from trigger to device actions
               {lastUpdated ? ` • Updated ${lastUpdated.toLocaleString()}` : ""}
             </Typography>
           </Box>
@@ -376,37 +284,147 @@ export default function ListRuleView() {
 
         <Divider sx={{ my: 2 }} />
 
-        <Box sx={{ width: "100%" }}>
-          <RuleListToolbar
-            searchParam={search}
-            activeFilter={activeFilter}
-            loading={loading}
-            onRefresh={() => refetch()}
-            onApply={handleApply}
-            onReset={handleReset}
-          />
+        <RuleListToolbar
+          searchParam={search}
+          activeFilter={activeFilter}
+          loading={loading}
+          onRefresh={() => refetch()}
+          onApply={handleApply}
+          onReset={handleReset}
+        />
 
-          {!loading && rowCount === 0 ? (
-            <NoRowsOverlay
-              title="No rules"
-              subtitle="Try adjusting your search or status filter."
+        {loading && tableData.length === 0 ? (
+          <Typography color="text.secondary" sx={{ mt: 3 }}>
+            Loading...
+          </Typography>
+        ) : !loading && tableData.length === 0 ? (
+          <NoRowsOverlay
+            title="No rules"
+            subtitle="Try adjusting your search or status filter."
+          />
+        ) : (
+          <TableContainer
+            sx={(theme) => ({
+              ...((typeof muiTableContainerSx === "function"
+                ? muiTableContainerSx(theme)
+                : muiTableContainerSx) as object),
+              mt: 2,
+            })}
+          >
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Rule</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Trigger</TableCell>
+                  <TableCell>Condition</TableCell>
+                  <TableCell>Actions</TableCell>
+                  <TableCell>Cooldown</TableCell>
+                  <TableCell>Last triggered</TableCell>
+                  <TableCell align="right">Detail</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {tableData.map((row: IRule) => {
+                  const conditions: IRuleCondition[] = row.conditions ?? [];
+                  const actions: IRuleAction[] = row.actions ?? [];
+                  return (
+                    <TableRow
+                      key={row.ruleId}
+                      hover
+                      sx={{ "& td": { verticalAlign: "top" } }}
+                    >
+                      <TableCell>{row.ruleId}</TableCell>
+                      <TableCell sx={{ minWidth: 220, maxWidth: 320 }}>
+                        <Typography variant="body2" fontWeight={700}>
+                          {getRuleDisplayName(row)}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {getRuleOriginalPrompt(row)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={row.isActive ? "Active" : "Inactive"}
+                          color={row.isActive ? "success" : "default"}
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <RuleTriggerChip trigger={row.trigger} />
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 180 }}>
+                        <RuleConditionChips
+                          conditions={conditions}
+                          logic={row.conditionLogic}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 180 }}>
+                        <RuleActionChips actions={actions} />
+                      </TableCell>
+                      <TableCell>
+                        {formatRuleCooldown(row.cooldownSec)}
+                      </TableCell>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>
+                        {row.lastTriggeredAt || "—"}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Detail">
+                          <IconButton
+                            size="small"
+                            aria-label={`Open rule ${row.ruleId}`}
+                            onClick={() =>
+                              navigate(ROUTES.ruleDetail(row.ruleId))
+                            }
+                          >
+                            <VisibilityOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        {rowCount > 0 ? (
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            justifyContent="space-between"
+            spacing={1.5}
+            sx={{ mt: 3 }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              Showing {tableData.length} of {rowCount} items
+            </Typography>
+            <Pagination
+              color="primary"
+              shape="rounded"
+              page={paginationModel.page + 1}
+              count={Math.max(
+                1,
+                Math.ceil(rowCount / paginationModel.pageSize),
+              )}
+              onChange={(_, page) =>
+                setPaginationModel((prev) => ({ ...prev, page: page - 1 }))
+              }
             />
-          ) : (
-            <Box sx={{ mt: 2, width: "100%" }}>
-              <AppDataGrid
-                withSurface={false}
-                rows={rows}
-                columns={columns}
-                loading={loading}
-                rowCount={rowCount}
-                pageSizeOptions={[10, 20, 50]}
-                paginationModel={paginationModel}
-                paginationMode="server"
-                onPaginationModelChange={setPaginationModel}
-              />
-            </Box>
-          )}
-        </Box>
+          </Stack>
+        ) : null}
       </Paper>
     </Box>
   );
