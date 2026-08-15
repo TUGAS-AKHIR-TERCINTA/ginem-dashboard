@@ -5,6 +5,7 @@ export { profileService } from "./profileService";
 export { deviceService } from "./deviceService";
 export { dashboardService } from "./dashboardService";
 export { loggerService } from "./loggerService";
+export { ruleService } from "./ruleService";
 export { schedulerService } from "./schedulerService";
 export { embeddingService } from "./embeddingService";
 export { settingsService } from "./settingsService";

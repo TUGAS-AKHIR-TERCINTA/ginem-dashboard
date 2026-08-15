@@ -4,6 +4,8 @@ export const ROUTES = {
   register: "/register",
   devices: "/devices",
   deviceDetail: (id: string | number) => `/devices/${id}`,
+  rules: "/rules",
+  ruleDetail: (id: string | number) => `/rules/${id}`,
   scheduler: "/scheduler",
   logger: "/logger",
   indexing: "/indexing",

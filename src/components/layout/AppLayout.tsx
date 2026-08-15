@@ -70,6 +70,11 @@ const mainNav: NavItem[] = [
     icon: <IconMenus.device fontSize="small" />,
   },
   {
+    title: "Rules",
+    link: ROUTES.rules,
+    icon: <IconMenus.rules fontSize="small" />,
+  },
+  {
     title: "Scheduler",
     link: ROUTES.scheduler,
     icon: <IconMenus.schedule fontSize="small" />,

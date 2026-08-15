@@ -16,6 +16,8 @@ const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("@/pages/auth/RegisterPage"));
 const ListDevicesPage = lazy(() => import("@/pages/devices/ListDeviceView"));
 const DeviceDetailPage = lazy(() => import("@/pages/devices/DetailDeviceView"));
+const ListRulesPage = lazy(() => import("@/pages/rules/ListRuleView"));
+const RuleDetailPage = lazy(() => import("@/pages/rules/DetailRuleView"));
 const ListSchedulerPage = lazy(
   () => import("@/pages/scheduler/ListSchedulerView"),
 );
@@ -61,6 +63,11 @@ export default function AppRoutes() {
     {
       path: `${ROUTES.devices}/:deviceId`,
       element: withSuspense(<DeviceDetailPage />),
+    },
+    { path: ROUTES.rules, element: withSuspense(<ListRulesPage />) },
+    {
+      path: `${ROUTES.rules}/:ruleId`,
+      element: withSuspense(<RuleDetailPage />),
     },
     { path: ROUTES.scheduler, element: withSuspense(<ListSchedulerPage />) },
     {
