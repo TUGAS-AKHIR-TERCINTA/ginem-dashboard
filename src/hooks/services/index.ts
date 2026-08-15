@@ -20,11 +20,12 @@ export {
   useRuleExecutionLogsQuery,
   useDeleteRuleMutation,
 } from "./useRules";
-export { useSchedulerListQuery } from "./useScheduler";
+export { useSchedulerListQuery, useDeleteSchedulerLogMutation } from "./useScheduler";
 export {
   useEmbeddingListQuery,
   useCreateEmbeddingMutation,
   useDeleteEmbeddingMutation,
+  useUploadEmbeddingMutation,
 } from "./useEmbedding";
 export {
   useWhatsappStatusQuery,

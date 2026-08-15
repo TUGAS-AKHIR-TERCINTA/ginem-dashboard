@@ -1,7 +1,8 @@
 import Box from "@mui/material/Box";
 import { useEffect, useState } from "react";
-import { useSchedulerListQuery } from "@/hooks/services";
+import { useSchedulerListQuery, useDeleteSchedulerLogMutation } from "@/hooks/services";
 import type { SchedulerLogItem } from "@/services/schedulerService";
+import DeleteModalScheduler from "@/features/scheduler/components/DeleteModalScheduler";
 import {
   Alert,
   Button,
@@ -32,6 +33,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CloseIcon from "@mui/icons-material/Close";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 
 function NoRowsOverlay({
   title,
@@ -73,6 +75,13 @@ export default function ListSchedulerView() {
       size: paginationModel.pageSize,
       search,
     });
+  const deleteSchedulerLog = useDeleteSchedulerLogMutation();
+
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{
+    id: number;
+    jobId: string;
+  } | null>(null);
 
   const tableData = data?.items ?? [];
   const rowCount = data?.totalItems ?? 0;
@@ -190,6 +199,31 @@ export default function ListSchedulerView() {
     return "default";
   };
 
+  const handleOpenDeleteModal = (row: SchedulerLogItem) => {
+    setItemToDelete({
+      id: row.schedulerLogId,
+      jobId: row.jobId || `#${row.schedulerLogId}`,
+    });
+    setOpenDeleteModal(true);
+  };
+
+  const handleCloseDeleteModal = () => {
+    if (!deleteSchedulerLog.isPending) {
+      setOpenDeleteModal(false);
+      setItemToDelete(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete || deleteSchedulerLog.isPending) return;
+    try {
+      await deleteSchedulerLog.mutateAsync(itemToDelete.id);
+      handleCloseDeleteModal();
+    } catch (error: unknown) {
+      console.error(error);
+    }
+  };
+
   return (
     <Box sx={{ pb: 2 }}>
       <BreadCrumberStyle
@@ -257,6 +291,7 @@ export default function ListSchedulerView() {
                     <TableCell>Run at</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Executed at</TableCell>
+                    <TableCell align="right">Action</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -336,6 +371,18 @@ export default function ListSchedulerView() {
                               : "—"}
                           </Typography>
                         </TableCell>
+                        <TableCell align="right">
+                          <Tooltip title="Delete">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              aria-label={`Delete scheduler log ${row.schedulerLogId}`}
+                              onClick={() => handleOpenDeleteModal(row)}
+                            >
+                              <DeleteOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -371,6 +418,14 @@ export default function ListSchedulerView() {
           )}
         </Box>
       </Paper>
+
+      <DeleteModalScheduler
+        open={openDeleteModal}
+        loading={deleteSchedulerLog.isPending}
+        jobId={itemToDelete?.jobId ?? null}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+      />
     </Box>
   );
 }

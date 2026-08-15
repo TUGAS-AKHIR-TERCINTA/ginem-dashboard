@@ -74,6 +74,15 @@ async function remove<T>(path: string): Promise<T> {
   return response.data;
 }
 
+async function postFormData<T>(path: string, formData: FormData): Promise<T> {
+  const response = await api.post<T>(path, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data;
+}
+
 async function getTableData<T>(
   params: TableQueryParams,
 ): Promise<PaginatedResponse<T>> {
@@ -101,4 +110,5 @@ export const apiClient = {
   patch,
   remove,
   getTableData,
+  postFormData,
 };

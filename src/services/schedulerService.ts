@@ -3,6 +3,7 @@ import type { PaginatedResponse } from "./types";
 
 export const SCHEDULER_API = {
   list: "/scheduler-logs",
+  remove: (id: string | number) => `/scheduler-logs/${id}`,
 } as const;
 
 export interface SchedulerListParams {
@@ -34,4 +35,6 @@ export const schedulerService = {
       size: params.size,
       filter: { search: params.search },
     }),
+
+  delete: (id: number) => apiClient.remove(SCHEDULER_API.remove(id)),
 };

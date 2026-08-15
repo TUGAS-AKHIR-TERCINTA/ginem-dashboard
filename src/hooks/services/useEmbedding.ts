@@ -29,3 +29,9 @@ export function useDeleteEmbeddingMutation() {
     invalidateTablePaths: [EMBEDDING_API.list],
   });
 }
+
+export function useUploadEmbeddingMutation() {
+  return useServicePostMutation(embeddingService.uploadFile, {
+    invalidateTablePaths: [EMBEDDING_API.list],
+  });
+}

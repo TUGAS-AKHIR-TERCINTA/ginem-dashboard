@@ -1,25 +1,24 @@
 import Box from "@mui/material/Box";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useCreateEmbeddingMutation,
   useDeleteEmbeddingMutation,
   useEmbeddingListQuery,
+  useUploadEmbeddingMutation,
 } from "@/hooks/services";
 import {
   Alert,
+  alpha,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
-  FormControl,
   IconButton,
   InputAdornment,
-  InputLabel,
-  MenuItem,
+  LinearProgress,
   Paper,
-  Select,
   Stack,
   TextField,
   Tooltip,
@@ -42,13 +41,15 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
-import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
+import TextFieldsIcon from "@mui/icons-material/TextFields";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CircularProgress from "@mui/material/CircularProgress";
 import { useAppContext } from "@/context/app.context";
 import { IIndexing } from "@/types/Indexing";
 import DeleteModalIndexing from "@/features/embedding/components/DeleteModalIndexing";
 
-const INDEX_SOURCE_OPTIONS = ["text", "pdf", "json"] as const;
 const CONTENT_PREVIEW_MAX = 200;
 
 function truncateContentForCell(raw: unknown): string {
@@ -57,14 +58,7 @@ function truncateContentForCell(raw: unknown): string {
   return `${s.slice(0, CONTENT_PREVIEW_MAX)}…`;
 }
 
-type IndexingDocumentDraft = {
-  content: string;
-  source: string;
-};
-
-function defaultDocumentRow(): IndexingDocumentDraft {
-  return { content: "", source: "text" };
-}
+type SourceType = "text" | "pdf";
 
 function NoRowsOverlay({
   title,
@@ -189,6 +183,264 @@ function EmbeddingListToolbar({
   );
 }
 
+type SourceTypeCardProps = {
+  selected: boolean;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  onClick: () => void;
+  disabled?: boolean;
+};
+
+function SourceTypeCard({
+  selected,
+  icon,
+  title,
+  description,
+  onClick,
+  disabled,
+}: SourceTypeCardProps) {
+  return (
+    <Paper
+      variant="outlined"
+      onClick={disabled ? undefined : onClick}
+      sx={{
+        p: 2.5,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        flex: 1,
+        minWidth: 180,
+        transition: "all 0.2s ease",
+        borderColor: selected ? "primary.main" : "divider",
+        borderWidth: selected ? 2 : 1,
+        bgcolor: selected
+          ? (theme) => alpha(theme.palette.primary.main, 0.04)
+          : "background.paper",
+        "&:hover": disabled
+          ? {}
+          : {
+              borderColor: "primary.main",
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04),
+            },
+      }}
+    >
+      <Stack spacing={1.5} alignItems="center" textAlign="center">
+        <Box
+          sx={{
+            width: 56,
+            height: 56,
+            borderRadius: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            bgcolor: selected
+              ? (theme) => alpha(theme.palette.primary.main, 0.12)
+              : (theme) => alpha(theme.palette.text.primary, 0.06),
+            color: selected ? "primary.main" : "text.secondary",
+            transition: "all 0.2s ease",
+          }}
+        >
+          {icon}
+        </Box>
+        <Box>
+          <Typography variant="subtitle1" fontWeight={700}>
+            {title}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {description}
+          </Typography>
+        </Box>
+        {selected && (
+          <CheckCircleIcon
+            sx={{ color: "primary.main", fontSize: 20 }}
+          />
+        )}
+      </Stack>
+    </Paper>
+  );
+}
+
+type FileDropZoneProps = {
+  file: File | null;
+  onFileSelect: (file: File | null) => void;
+  disabled?: boolean;
+  accept?: string;
+};
+
+function FileDropZone({
+  file,
+  onFileSelect,
+  disabled,
+  accept = ".pdf",
+}: FileDropZoneProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!disabled) setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (disabled) return;
+
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile && droppedFile.type === "application/pdf") {
+      onFileSelect(droppedFile);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      onFileSelect(selectedFile);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    onFileSelect(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  if (file) {
+    return (
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 2,
+          borderColor: "success.main",
+          bgcolor: (theme) => alpha(theme.palette.success.main, 0.04),
+        }}
+      >
+        <Stack direction="row" alignItems="center" spacing={2}>
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: 1.5,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              bgcolor: (theme) => alpha(theme.palette.error.main, 0.1),
+              color: "error.main",
+            }}
+          >
+            <PictureAsPdfIcon sx={{ fontSize: 28 }} />
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography
+              variant="body2"
+              fontWeight={600}
+              sx={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {file.name}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {formatFileSize(file.size)}
+            </Typography>
+          </Box>
+          <Tooltip title="Remove file">
+            <IconButton
+              size="small"
+              onClick={handleRemoveFile}
+              disabled={disabled}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </Paper>
+    );
+  }
+
+  return (
+    <Box>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={accept}
+        onChange={handleFileChange}
+        style={{ display: "none" }}
+        disabled={disabled}
+      />
+      <Paper
+        variant="outlined"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+        sx={{
+          p: 4,
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.5 : 1,
+          borderStyle: "dashed",
+          borderWidth: 2,
+          borderColor: isDragOver ? "primary.main" : "divider",
+          bgcolor: isDragOver
+            ? (theme) => alpha(theme.palette.primary.main, 0.04)
+            : "background.paper",
+          transition: "all 0.2s ease",
+          "&:hover": disabled
+            ? {}
+            : {
+                borderColor: "primary.main",
+                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.02),
+              },
+        }}
+      >
+        <Stack spacing={2} alignItems="center">
+          <Box
+            sx={{
+              width: 64,
+              height: 64,
+              borderRadius: 2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+              color: "primary.main",
+            }}
+          >
+            <UploadFileIcon sx={{ fontSize: 32 }} />
+          </Box>
+          <Box textAlign="center">
+            <Typography variant="body1" fontWeight={600}>
+              Drop your PDF here
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              or click to browse files
+            </Typography>
+          </Box>
+          <Typography variant="caption" color="text.disabled">
+            Supported format: PDF
+          </Typography>
+        </Stack>
+      </Paper>
+    </Box>
+  );
+}
+
 export default function ListEmbeddingView() {
   const { setAppAlert } = useAppContext();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -224,13 +476,14 @@ export default function ListEmbeddingView() {
     : null;
 
   const createIndexing = useCreateEmbeddingMutation();
+  const uploadIndexing = useUploadEmbeddingMutation();
   const deleteIndexing = useDeleteEmbeddingMutation();
 
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [documentRows, setDocumentRows] = useState<IndexingDocumentDraft[]>([
-    defaultDocumentRow(),
-  ]);
-  const [submitIndexingLoading, setSubmitIndexingLoading] = useState(false);
+  const [sourceType, setSourceType] = useState<SourceType>("text");
+  const [textContent, setTextContent] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -244,7 +497,9 @@ export default function ListEmbeddingView() {
   } | null>(null);
 
   const resetAddForm = () => {
-    setDocumentRows([defaultDocumentRow()]);
+    setSourceType("text");
+    setTextContent("");
+    setSelectedFile(null);
     setFormError(null);
   };
 
@@ -254,39 +509,55 @@ export default function ListEmbeddingView() {
   };
 
   const handleCloseAddModal = () => {
-    if (submitIndexingLoading) return;
+    if (submitLoading) return;
     setAddModalOpen(false);
     resetAddForm();
   };
 
-  const handleSubmitIndexing = async () => {
-    const documents = documentRows
-      .map((row) => ({
-        content: row.content.trim(),
-        source: row.source.trim(),
-      }))
-      .filter((row) => row.content.length > 0 && row.source.length > 0);
-
-    if (documents.length === 0) {
-      setFormError(
-        "Add at least one document with non-empty content and source.",
-      );
-      return;
-    }
-
+  const handleSubmit = async () => {
     setFormError(null);
-    setSubmitIndexingLoading(true);
-    try {
-      await createIndexing.mutateAsync({ documents });
-      setAppAlert({
-        isDisplayAlert: true,
-        message: "Content submitted for indexing.",
-        alertType: "success",
-      });
-      setAddModalOpen(false);
-      resetAddForm();
-    } finally {
-      setSubmitIndexingLoading(false);
+
+    if (sourceType === "text") {
+      const content = textContent.trim();
+      if (!content) {
+        setFormError("Please enter some text content.");
+        return;
+      }
+
+      setSubmitLoading(true);
+      try {
+        await createIndexing.mutateAsync({
+          documents: [{ content, source: "text" }],
+        });
+        setAppAlert({
+          isDisplayAlert: true,
+          message: "Content submitted for indexing.",
+          alertType: "success",
+        });
+        setAddModalOpen(false);
+        resetAddForm();
+      } finally {
+        setSubmitLoading(false);
+      }
+    } else {
+      if (!selectedFile) {
+        setFormError("Please select a PDF file to upload.");
+        return;
+      }
+
+      setSubmitLoading(true);
+      try {
+        await uploadIndexing.mutateAsync(selectedFile);
+        setAppAlert({
+          isDisplayAlert: true,
+          message: "PDF uploaded and submitted for indexing.",
+          alertType: "success",
+        });
+        setAddModalOpen(false);
+        resetAddForm();
+      } finally {
+        setSubmitLoading(false);
+      }
     }
   };
 
@@ -504,6 +775,7 @@ export default function ListEmbeddingView() {
         </Box>
       </Paper>
 
+      {/* Add Content Modal */}
       <Dialog
         open={addModalOpen}
         onClose={handleCloseAddModal}
@@ -511,114 +783,132 @@ export default function ListEmbeddingView() {
         maxWidth="sm"
         aria-labelledby="add-indexing-dialog-title"
       >
-        <DialogTitle id="add-indexing-dialog-title">Add content</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ pt: 0.5 }}>
+        <DialogTitle id="add-indexing-dialog-title">
+          <Typography variant="h6" fontWeight={700}>
+            Add knowledge source
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Choose how you want to add content for indexing
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent>
+          <Stack spacing={3}>
             {formError ? (
               <Alert severity="error" onClose={() => setFormError(null)}>
                 {formError}
               </Alert>
             ) : null}
 
-            {documentRows.map((row, index) => (
-              <Paper key={index} variant="outlined" sx={{ p: 2 }}>
-                <Stack spacing={2}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    justifyContent="space-between"
-                  >
-                    <Typography variant="subtitle2" fontWeight={700}>
-                      Document {index + 1}
-                    </Typography>
-                    {documentRows.length > 1 ? (
-                      <Tooltip title="Remove">
-                        <IconButton
-                          size="small"
-                          aria-label="Remove document"
-                          onClick={() =>
-                            setDocumentRows((prev) =>
-                              prev.filter((_, i) => i !== index),
-                            )
-                          }
-                        >
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    ) : null}
-                  </Stack>
-                  <TextField
-                    label="Content"
-                    value={row.content}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setDocumentRows((prev) =>
-                        prev.map((r, i) =>
-                          i === index ? { ...r, content: v } : r,
-                        ),
-                      );
-                    }}
-                    multiline
-                    minRows={3}
-                    fullWidth
-                    required
-                    placeholder="Text to index…"
-                  />
-                  <FormControl fullWidth size="small">
-                    <InputLabel id={`source-label-${index}`}>Source</InputLabel>
-                    <Select
-                      labelId={`source-label-${index}`}
-                      label="Source"
-                      value={row.source}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setDocumentRows((prev) =>
-                          prev.map((r, i) =>
-                            i === index ? { ...r, source: v } : r,
-                          ),
-                        );
-                      }}
-                    >
-                      {INDEX_SOURCE_OPTIONS.map((opt) => (
-                        <MenuItem key={opt} value={opt}>
-                          {opt}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Stack>
-              </Paper>
-            ))}
+            {/* Source Type Selection */}
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <SourceTypeCard
+                selected={sourceType === "text"}
+                icon={<TextFieldsIcon sx={{ fontSize: 28 }} />}
+                title="Text Input"
+                description="Type or paste text content"
+                onClick={() => setSourceType("text")}
+                disabled={submitLoading}
+              />
+              <SourceTypeCard
+                selected={sourceType === "pdf"}
+                icon={<PictureAsPdfIcon sx={{ fontSize: 28 }} />}
+                title="Upload PDF"
+                description="Upload a PDF document"
+                onClick={() => setSourceType("pdf")}
+                disabled={submitLoading}
+              />
+            </Stack>
 
-            <Button
-              variant="outlined"
-              startIcon={<PlaylistAddIcon />}
-              onClick={() =>
-                setDocumentRows((prev) => [...prev, defaultDocumentRow()])
-              }
-            >
-              Add another document
-            </Button>
+            <Divider />
+
+            {/* Content Input Area */}
+            {sourceType === "text" ? (
+              <Box>
+                <Typography
+                  variant="subtitle2"
+                  fontWeight={600}
+                  sx={{ mb: 1.5 }}
+                >
+                  Enter your text
+                </Typography>
+                <TextField
+                  value={textContent}
+                  onChange={(e) => setTextContent(e.target.value)}
+                  multiline
+                  minRows={6}
+                  maxRows={12}
+                  fullWidth
+                  placeholder="Paste or type the text content you want to index..."
+                  disabled={submitLoading}
+                  sx={{
+                    "& .MuiInputBase-root": {
+                      fontFamily: "inherit",
+                    },
+                  }}
+                />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ mt: 1, display: "block" }}
+                >
+                  {textContent.length} characters
+                </Typography>
+              </Box>
+            ) : (
+              <Box>
+                <Typography
+                  variant="subtitle2"
+                  fontWeight={600}
+                  sx={{ mb: 1.5 }}
+                >
+                  Upload your PDF
+                </Typography>
+                <FileDropZone
+                  file={selectedFile}
+                  onFileSelect={setSelectedFile}
+                  disabled={submitLoading}
+                  accept=".pdf"
+                />
+              </Box>
+            )}
+
+            {submitLoading && (
+              <Box>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 1 }}
+                >
+                  {sourceType === "text"
+                    ? "Indexing content..."
+                    : "Uploading and processing PDF..."}
+                </Typography>
+                <LinearProgress />
+              </Box>
+            )}
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={handleCloseAddModal}
-            disabled={submitIndexingLoading}
-          >
+
+        <DialogActions sx={{ px: 3, pb: 2.5, pt: 1 }}>
+          <Button onClick={handleCloseAddModal} disabled={submitLoading}>
             Cancel
           </Button>
           <Button
             variant="contained"
-            onClick={handleSubmitIndexing}
-            disabled={submitIndexingLoading}
+            onClick={handleSubmit}
+            disabled={
+              submitLoading ||
+              (sourceType === "text" && !textContent.trim()) ||
+              (sourceType === "pdf" && !selectedFile)
+            }
             startIcon={
-              submitIndexingLoading ? (
+              submitLoading ? (
                 <CircularProgress size={18} color="inherit" />
               ) : null
             }
           >
-            Submit
+            {submitLoading ? "Processing..." : "Submit"}
           </Button>
         </DialogActions>
       </Dialog>

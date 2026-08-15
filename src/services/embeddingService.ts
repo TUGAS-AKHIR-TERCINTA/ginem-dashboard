@@ -35,6 +35,12 @@ export const embeddingService = {
   create: (payload: EmbeddingCreatePayload) =>
     apiClient.post(EMBEDDING_API.list, payload),
 
+  uploadFile: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiClient.postFormData(`${EMBEDDING_API.list}/upload`, formData);
+  },
+
   delete: (indexingId: number) =>
     apiClient.remove(`${EMBEDDING_API.list}/${indexingId}`),
 };
