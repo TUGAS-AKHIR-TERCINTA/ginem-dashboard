@@ -46,6 +46,7 @@ import { useToken } from "@/hooks/use-token";
 import { IconMenus } from "@/assets/icons";
 import { ColorModeContext } from "@/context/colorMode.context";
 import { ChatWidget } from "@/features/chat/components/ChatWidget";
+import { NotificationPanel } from "@/features/notifications/components/NotificationPanel";
 import { ROUTES } from "@/routes/routes";
 import { brand } from "@/styles/theme";
 import { useMyProfileQuery } from "@/hooks/services";
@@ -283,6 +284,7 @@ export default function AppLayout() {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
   const [search, setSearch] = useState("");
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   const displayName = useMemo(() => {
     const name = profile?.userName?.trim();
@@ -446,6 +448,7 @@ export default function AppLayout() {
               <Tooltip title="Notifications">
                 <IconButton
                   aria-label="Notifications"
+                  onClick={() => setNotificationOpen(true)}
                   sx={{
                     bgcolor: alpha(brand.indigo, 0.06),
                     "&:hover": { bgcolor: alpha(brand.indigo, 0.12) },
@@ -595,6 +598,10 @@ export default function AppLayout() {
       </Box>
 
       <ChatWidget />
+      <NotificationPanel
+        open={notificationOpen}
+        onClose={() => setNotificationOpen(false)}
+      />
     </Box>
   );
 }
