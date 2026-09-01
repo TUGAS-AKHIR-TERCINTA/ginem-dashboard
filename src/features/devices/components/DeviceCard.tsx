@@ -77,9 +77,13 @@ export default function DeviceCard({
     return Number.isFinite(n) ? n : 0;
   });
 
+  const isActuator =
+    String(device?.deviceType ?? "").toLowerCase() === "actuator";
+  const chartType: "bar" | "area" = isActuator ? "bar" : "area";
+
   const chartOptions: ApexOptions = {
     chart: {
-      type: "area",
+      type: chartType,
       background: "transparent",
       toolbar: { show: false },
       zoom: { enabled: false },
@@ -91,24 +95,33 @@ export default function DeviceCard({
         speed: 650,
       },
     },
-    stroke: {
-      curve: "smooth",
-      width: 2.5,
-      colors: [primaryMain],
-    },
-    fill: {
-      type: "gradient",
-      gradient: {
-        shade: isDark ? "dark" : "light",
-        type: "vertical",
-        shadeIntensity: 0.35,
-        gradientToColors: [primaryLight],
-        inverseColors: false,
-        opacityFrom: isDark ? 0.55 : 0.42,
-        opacityTo: isDark ? 0.05 : 0.02,
-        stops: [0, 88, 100],
-      },
-    },
+    stroke: isActuator
+      ? {
+          width: 0,
+        }
+      : {
+          curve: "smooth",
+          width: 2.5,
+          colors: [primaryMain],
+        },
+    fill: isActuator
+      ? {
+          type: "solid",
+          opacity: 0.85,
+        }
+      : {
+          type: "gradient",
+          gradient: {
+            shade: isDark ? "dark" : "light",
+            type: "vertical",
+            shadeIntensity: 0.35,
+            gradientToColors: [primaryLight],
+            inverseColors: false,
+            opacityFrom: isDark ? 0.55 : 0.42,
+            opacityTo: isDark ? 0.05 : 0.02,
+            stops: [0, 88, 100],
+          },
+        },
     colors: [primaryMain],
     xaxis: {
       categories: chartCategories,
@@ -156,11 +169,19 @@ export default function DeviceCard({
       strokeColors: theme.palette.background.paper,
       strokeWidth: 2,
     },
-    plotOptions: {
-      area: {
-        fillTo: "origin",
-      },
-    },
+    plotOptions: isActuator
+      ? {
+          bar: {
+            borderRadius: 4,
+            borderRadiusApplication: "end",
+            columnWidth: "55%",
+          },
+        }
+      : {
+          area: {
+            fillTo: "origin",
+          },
+        },
   };
 
   const chartSeries = [{ name: "Value", data: chartData }];
@@ -305,7 +326,7 @@ export default function DeviceCard({
                 <ReactApexChart
                   options={chartOptions}
                   series={chartSeries}
-                  type="area"
+                  type={chartType}
                   height={200}
                 />
               </Box>

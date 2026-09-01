@@ -527,7 +527,7 @@ export default function ListEmbeddingView() {
       setSubmitLoading(true);
       try {
         await createIndexing.mutateAsync({
-          documents: [{ content, source: "text" }],
+          documents: [{ text: content, source: "text" }],
         });
         setAppAlert({
           isDisplayAlert: true,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
 import {
   Avatar,
   Box,
@@ -15,8 +15,7 @@ import {
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import CloseIcon from "@mui/icons-material/Close";
 import SendIcon from "@mui/icons-material/Send";
-import { useChatMutation } from "@/hooks/services";
-import { parseChatReply } from "@/services/chatService";
+import { useChatSocket } from "@/hooks/services";
 
 type ChatRole = "user" | "assistant" | "system";
 
@@ -29,7 +28,6 @@ interface ChatMessage {
 const drawerWidth = { xs: "100%", sm: 420, md: 440 };
 
 export function ChatWidget() {
-  const chatMutation = useChatMutation();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -39,9 +37,22 @@ export function ChatWidget() {
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
 
-  const handleSend = async () => {
+  const handleIncomingMessage = useCallback((text: string) => {
+    setMessages((prev) => [
+      ...prev,
+      { id: `${Date.now()}-assistant`, role: "assistant", text },
+    ]);
+    setSending(false);
+  }, []);
+
+  const { status, sendMessage } = useChatSocket({
+    enabled: open,
+    onMessage: handleIncomingMessage,
+  });
+
+  const handleSend = () => {
     const trimmed = input.trim();
-    if (!trimmed || sending) return;
+    if (!trimmed || sending || status !== "open") return;
 
     const userMessage: ChatMessage = {
       id: `${Date.now()}-user`,
@@ -52,22 +63,7 @@ export function ChatWidget() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setSending(true);
-
-    try {
-      const res = await chatMutation.mutateAsync({ message: trimmed });
-
-      const replyText = parseChatReply(res);
-
-      const botMessage: ChatMessage = {
-        id: `${Date.now()}-assistant`,
-        role: "assistant",
-        text: String(replyText),
-      };
-
-      setMessages((prev) => [...prev, botMessage]);
-    } finally {
-      setSending(false);
-    }
+    sendMessage(trimmed);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -278,16 +274,20 @@ export function ChatWidget() {
             <TextField
               size="small"
               fullWidth
-              placeholder="Ketik pesan..."
+              placeholder={
+                status === "connecting"
+                  ? "Menghubungkan..."
+                  : "Ketik pesan..."
+              }
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={sending}
+              disabled={sending || status !== "open"}
             />
             <IconButton
               color="primary"
               onClick={handleSend}
-              disabled={sending || !input.trim()}
+              disabled={sending || status !== "open" || !input.trim()}
             >
               {sending ? (
                 <CircularProgress size={20} />

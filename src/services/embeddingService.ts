@@ -13,7 +13,7 @@ export interface EmbeddingListParams {
 }
 
 export interface EmbeddingDocumentPayload {
-  content: string;
+  text: string;
   source: string;
 }
 

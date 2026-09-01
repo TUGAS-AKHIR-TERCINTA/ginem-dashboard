@@ -19,7 +19,6 @@ vi.mock("@/services/api", () => ({
 
 import { apiClient } from "@/services/api";
 import {
-  useChatMutation,
   useCreateAdminMutation,
   useDeleteAdminMutation,
   useMyProfileQuery,
@@ -42,27 +41,6 @@ describe("useMyProfileQuery", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(apiClient.get).toHaveBeenCalledWith("/my-profiles");
-  });
-});
-
-describe("useChatMutation", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("sends chat message via chat service", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({
-      data: { reply: "Hello" },
-    });
-
-    const { result } = renderHook(() => useChatMutation(), {
-      wrapper: createAppQueryWrapper(),
-    });
-
-    const response = await result.current.mutateAsync({ message: "Hi" });
-
-    expect(apiClient.post).toHaveBeenCalledWith("/chat", { message: "Hi" });
-    expect(response).toEqual({ data: { reply: "Hello" } });
   });
 });
 

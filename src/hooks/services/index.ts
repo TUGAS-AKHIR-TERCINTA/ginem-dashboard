@@ -32,5 +32,6 @@ export {
   useWhatsappQrQuery,
   useDisconnectWhatsappMutation,
 } from "./useSettings";
-export { useChatMutation } from "./useChat";
+export { useChatSocket } from "./useChatSocket";
+export type { ChatSocketStatus } from "./useChatSocket";
 export { useLoginMutation, useRegisterMutation } from "./useAuth";

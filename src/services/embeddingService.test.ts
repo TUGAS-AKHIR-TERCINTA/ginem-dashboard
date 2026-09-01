@@ -31,7 +31,7 @@ describe("embeddingService", () => {
 
   it("create posts documents for indexing", async () => {
     const payload = {
-      documents: [{ content: "Hello", source: "text" }],
+      documents: [{ text: "Hello", source: "text" }],
     };
 
     await embeddingService.create(payload);

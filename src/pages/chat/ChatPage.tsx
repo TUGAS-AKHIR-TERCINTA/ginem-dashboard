@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
 import {
   Avatar,
   Box,
@@ -13,8 +13,7 @@ import { useNavigate } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SendIcon from "@mui/icons-material/Send";
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
-import { useChatMutation } from "@/hooks/services";
-import { parseChatReply } from "@/services/chatService";
+import { useChatSocket } from "@/hooks/services";
 
 type ChatRole = "user" | "assistant" | "system";
 
@@ -33,7 +32,6 @@ const SUGGESTED_PROMPTS = [
 
 export default function ChatView() {
   const theme = useTheme();
-  const chatMutation = useChatMutation();
   const navigate = useNavigate();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -41,10 +39,22 @@ export default function ChatView() {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const handleSend = async (value?: string) => {
+  const handleIncomingMessage = useCallback((text: string) => {
+    setMessages((prev) => [
+      ...prev,
+      { id: `${Date.now()}-assistant`, role: "assistant", text },
+    ]);
+    setSending(false);
+  }, []);
+
+  const { status, sendMessage } = useChatSocket({
+    onMessage: handleIncomingMessage,
+  });
+
+  const handleSend = (value?: string) => {
     const raw = typeof value === "string" ? value : input;
     const trimmed = raw.trim();
-    if (!trimmed || sending) return;
+    if (!trimmed || sending || status !== "open") return;
 
     const userMessage: ChatMessage = {
       id: `${Date.now()}-user`,
@@ -55,22 +65,7 @@ export default function ChatView() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setSending(true);
-
-    try {
-      const res = await chatMutation.mutateAsync({ message: trimmed });
-
-      const replyText = parseChatReply(res);
-
-      const botMessage: ChatMessage = {
-        id: `${Date.now()}-assistant`,
-        role: "assistant",
-        text: String(replyText),
-      };
-
-      setMessages((prev) => [...prev, botMessage]);
-    } finally {
-      setSending(false);
-    }
+    sendMessage(trimmed);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -392,11 +387,15 @@ export default function ChatView() {
             fullWidth
             multiline
             maxRows={4}
-            placeholder="Tulis pesan ke Neuro AI..."
+            placeholder={
+              status === "connecting"
+                ? "Menghubungkan..."
+                : "Tulis pesan ke Neuro AI..."
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={sending}
+            disabled={sending || status !== "open"}
             variant="standard"
             InputProps={{
               disableUnderline: true,
@@ -410,7 +409,7 @@ export default function ChatView() {
           <IconButton
             color="primary"
             onClick={() => handleSend()}
-            disabled={sending || !input.trim()}
+            disabled={sending || status !== "open" || !input.trim()}
             sx={{
               bgcolor: input.trim() ? "primary.main" : "transparent",
               color: input.trim() ? "primary.contrastText" : "primary.main",
