@@ -34,4 +34,10 @@ export {
 } from "./useSettings";
 export { useChatSocket } from "./useChatSocket";
 export type { ChatSocketStatus } from "./useChatSocket";
+export {
+  useLLMModelsQuery,
+  useSelectedLLMQuery,
+  useSelectLLMMutation,
+  useLLMSettingsService,
+} from "./useLLMSettings";
 export { useLoginMutation, useRegisterMutation } from "./useAuth";

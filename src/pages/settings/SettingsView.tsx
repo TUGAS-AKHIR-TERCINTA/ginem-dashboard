@@ -20,20 +20,25 @@ import {
   useDisconnectWhatsappMutation,
   useWhatsappQrQuery,
   useWhatsappStatusQuery,
+  useLLMModelsQuery,
+  useSelectedLLMQuery,
+  useSelectLLMMutation,
 } from "@/hooks/services";
 import { settingsService } from "@/services/settingsService";
 import { useApiErrorHandler } from "@/hooks/api/useApiErrorHandler";
+import { useAppContext } from "@/context/app.context";
 import PageHeader from "@/components/common/PageHeader";
 import BreadCrumberStyle from "@/components/common/Breadcrumb";
 import { IconMenus } from "@/assets/icons";
 import { ROUTES } from "@/routes/routes";
 
 export default function SettingsView() {
-  const [selectedModel, setSelectedModel] = useState("gpt-4o");
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectLoading, setConnectLoading] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
   const onError = useApiErrorHandler();
+  const { setAppAlert } = useAppContext();
 
   const {
     data: status,
@@ -50,11 +55,27 @@ export default function SettingsView() {
 
   const disconnect = useDisconnectWhatsappMutation();
 
-  const llmModels = [
-    { provider: "OpenAI", models: ["gpt-4o", "gpt-4-turbo"] },
-    { provider: "DeepSeek", models: ["deepseek-chat", "deepseek-coder"] },
-    { provider: "Anthropic", models: ["claude-3-opus", "claude-3-sonnet"] },
-  ];
+  // LLM Settings
+  const { data: models, isLoading: modelsLoading } = useLLMModelsQuery();
+  const { data: selectedModel, isLoading: selectedLoading, error: selectedError } = useSelectedLLMQuery();
+  const selectModel = useSelectLLMMutation();
+
+
+  // Use first model as default if selected endpoint fails
+  const defaultSelectedModel = !selectedError && selectedModel ? selectedModel : models?.items?.[0];
+
+  const groupedModels = models?.items ? Object.values(models.items).reduce(
+    (acc: Record<string, any[]>, model: any) => {
+      const provider = model.provider;
+      if (!acc[provider]) {
+        acc[provider] = [];
+      }
+      acc[provider].push(model);
+      return acc;
+    },
+    {} as Record<string, any[]>,
+  ) : {};
+
 
   const handleConnect = async () => {
     try {
@@ -79,6 +100,21 @@ export default function SettingsView() {
       refetchStatus();
     } catch {
       setError("Failed to disconnect");
+    }
+  };
+
+  const handleSelectModel = async (modelId: string) => {
+    try {
+      setModelError(null);
+      await selectModel.mutateAsync({ modelId });
+      setAppAlert({
+        isDisplayAlert: true,
+        message: "Model changed successfully",
+        alertType: "success",
+      });
+    } catch (err) {
+      onError(err);
+      setModelError("Failed to change model");
     }
   };
 
@@ -222,27 +258,59 @@ export default function SettingsView() {
                 Choose which model will be used for AI responses.
               </Typography>
 
-              <FormControl fullWidth>
-                <InputLabel>Select Model</InputLabel>
-                <Select
-                  value={selectedModel}
-                  label="Select Model"
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                >
-                  {llmModels.map((group) => (
-                    <Box key={group.provider}>
-                      <MenuItem disabled>
-                        <strong>{group.provider}</strong>
-                      </MenuItem>
-                      {group.models.map((model) => (
-                        <MenuItem key={model} value={model}>
-                          {model}
-                        </MenuItem>
-                      ))}
+              {selectedLoading || modelsLoading ? (
+                <CircularProgress size={20} />
+              ) : (
+                <>
+                  {defaultSelectedModel && (
+                    <Stack spacing={2} mb={2}>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          Currently Selected:
+                        </Typography>
+                        <Chip
+                          label={`${defaultSelectedModel.provider} - ${defaultSelectedModel.name}`}
+                          color="primary"
+                          sx={{ mt: 1 }}
+                        />
+                      </Box>
+                    </Stack>
+                  )}
+
+                  {modelError && <Alert severity="error">{modelError}</Alert>}
+
+                  <FormControl fullWidth disabled={selectModel.isPending}>
+                    <InputLabel>Select Model</InputLabel>
+                    <Select
+                      value={defaultSelectedModel?.id || ""}
+                      label="Select Model"
+                      onChange={(e) => handleSelectModel(e.target.value)}
+                    >
+                      {Object.entries(groupedModels).map(
+                        ([provider, providerModels]: [string, any]) => [
+                          <MenuItem key={`${provider}-header`} disabled>
+                            <strong>{provider}</strong>
+                          </MenuItem>,
+                          ...providerModels?.map((model: any) => (
+                            <MenuItem key={model.id} value={model.id}>
+                              {model.name}
+                            </MenuItem>
+                          )),
+                        ],
+                      ).flat()}
+                    </Select>
+                  </FormControl>
+
+                  {selectModel.isPending && (
+                    <Box sx={{ mt: 2, display: "flex", alignItems: "center", gap: 1 }}>
+                      <CircularProgress size={20} />
+                      <Typography variant="body2" color="text.secondary">
+                        Changing model...
+                      </Typography>
                     </Box>
-                  ))}
-                </Select>
-              </FormControl>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </Grid>

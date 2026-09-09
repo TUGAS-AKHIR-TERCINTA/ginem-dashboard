@@ -9,6 +9,7 @@ export { ruleService } from "./ruleService";
 export { schedulerService } from "./schedulerService";
 export { embeddingService } from "./embeddingService";
 export { settingsService } from "./settingsService";
+export { llmSettingsService } from "./llmSettingsService";
 export { buildChatSocketUrl, parseChatSocketPayload } from "./chatSocket";
 export { queryKeys } from "./query-keys";
 export type { PaginatedResponse, TableQueryParams } from "./types";
